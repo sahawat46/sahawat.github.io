@@ -1230,15 +1230,32 @@ async function tryLogin(){
     errEl.textContent = "กรุณากรอก Username และรหัสผ่าน";
     return;
   }
-  if(!/^[0-9]{6}$/.test(pass)){
-    errEl.textContent = "รหัสผ่านต้องเป็นตัวเลข 6 หลัก";
-    return;
-  }
   const u = findUserByUsername(uname);
-  if(!u || u.active===false || u.password !== pass){
-    errEl.textContent = "Username หรือรหัสผ่านไม่ถูกต้อง";
+  if(!u || u.active===false || !u.email){
+    errEl.textContent = "Username ไม่ถูกต้อง หรือถูกระงับ";
     return;
   }
+  
+  errEl.textContent = "กำลังตรวจสอบรหัสผ่าน...";
+  
+  if(_useSupabase && _sb) {
+    const { data, error } = await _sb.auth.signInWithPassword({
+      email: u.email,
+      password: pass
+    });
+    if(error) {
+      errEl.textContent = "รหัสผ่านไม่ถูกต้อง";
+      return;
+    }
+  } else {
+    // Fallback if not using Supabase (not expected to hit)
+    if(u.password && u.password !== pass){
+      errEl.textContent = "Username หรือรหัสผ่านไม่ถูกต้อง";
+      return;
+    }
+  }
+
+  errEl.textContent = "";
   currentUser = u;
   try{ localStorage.setItem('sb_session', JSON.stringify({username:u.username})); }catch(e){}
   try{ await window.storage.set("session", JSON.stringify({username:u.username}), false); }catch(e){}

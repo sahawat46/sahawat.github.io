@@ -44,6 +44,12 @@ async function main() {
   const seedNewLeadsJul8 = extractArray('seedNewLeadsJul8');
   console.log('Leads Jul 8:', seedNewLeadsJul8.length);
 
+  console.log('Clearing existing data...');
+  await supabase.from('users_tbl').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('history_tbl').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('jobs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('leads').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
   console.log('Inserting into users_tbl...');
   const users = SEED_STAFF_NAMES.map((name, i) => ({
     id: "user_" + Date.now() + "_" + i,
@@ -74,18 +80,18 @@ async function main() {
   }
   console.log('History inserted.');
 
-  console.log('Inserting into jobs_tbl...');
+  console.log('Inserting into jobs...');
   for (let i = 0; i < seedNewJobsJul8.length; i += 50) {
     const batch = seedNewJobsJul8.slice(i, i + 50).map(j => ({ job_data: j }));
-    const { error } = await supabase.from('jobs_tbl').insert(batch);
+    const { error } = await supabase.from('jobs').insert(batch);
     if (error) console.error('Error inserting jobs:', error);
   }
   console.log('Jobs inserted.');
 
-  console.log('Inserting into leads_tbl...');
+  console.log('Inserting into leads...');
   for (let i = 0; i < seedNewLeadsJul8.length; i += 50) {
     const batch = seedNewLeadsJul8.slice(i, i + 50).map(l => ({ lead_data: l }));
-    const { error } = await supabase.from('leads_tbl').insert(batch);
+    const { error } = await supabase.from('leads').insert(batch);
     if (error) console.error('Error inserting leads:', error);
   }
   console.log('Leads inserted.');
