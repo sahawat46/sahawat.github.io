@@ -1,19 +1,19 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import './globals.css';
+import { initLegacyLogic } from './logic';
 
 export default function Home() {
-  const [isLoaded, setIsLoaded] = useState(false);
-
   useEffect(() => {
-    setIsLoaded(true);
-    // Logic will be injected here
+    try {
+      initLegacyLogic();
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
-
-  if (!isLoaded) return <div>Loading...</div>;
 
   return (
     <>
