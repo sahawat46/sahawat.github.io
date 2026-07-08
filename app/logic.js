@@ -169,8 +169,8 @@ function toast(msg){
 // ═══════════════════════════════════════════════════════════════════
 // ☁️  SUPABASE CLOUD DATABASE LAYER
 // ═══════════════════════════════════════════════════════════════════
-let _sb = null;          // Supabase client
-let _useSupabase = false;
+let _sb = supabase;          // Supabase client
+let _useSupabase = true;
 let _editingVersion = null; // สำหรับ optimistic locking
 let _realtimeChannel = null;
 
