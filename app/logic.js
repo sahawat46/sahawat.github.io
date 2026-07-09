@@ -1119,7 +1119,10 @@ async function loadUsers(){
     if(_useSupabase){
       const { data, error } = await _sb.from('users_tbl').select('*');
       if(error) throw error;
-      users = (data||[]).map(r=>r.user_data);
+      users = (data||[]).map(r => {
+        r.user_data.db_id = r.id;
+        return r.user_data;
+      });
     } else {
       const res = await window.storage.get("users", true);
       users = res && res.value ? JSON.parse(res.value) : [];
@@ -1148,7 +1151,11 @@ async function loadUsers(){
 async function saveUsers(){
   try{
     if(_useSupabase){
-      const rows = users.map(u=>({ id:u.id, user_data:u }));
+      const rows = users.map(u => {
+        const row = { user_data: u };
+        if (u.db_id) row.id = u.db_id;
+        return row;
+      });
       const { error } = await _sb.from('users_tbl').upsert(rows);
       if(error) throw error;
     } else {
