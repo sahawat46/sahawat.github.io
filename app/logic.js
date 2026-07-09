@@ -712,11 +712,11 @@ function renderExpenseView(){
   const year2Opts = allYears.map(y=>`<option value="${y}" ${y===expYear2?'selected':''}>${y+543}</option>`).join('');
 
   const ctrl = `<div class="summary-controls" style="flex-wrap:wrap;gap:8px;">
-    <button class="vt-btn ${expView==='monthly'?'active':''}" onclick="expView='monthly';renderList()">📅 รายเดือน</button>
-    <button class="vt-btn ${expView==='annual'?'active':''}" onclick="expView='annual';renderList()">📆 รายปี</button>
-    ${(canAccess('expense_profit') && !currentUser?.permissions?.expense_noprofit) ? `<button class="vt-btn ${expView==='profit'?'active':''}" onclick="expView='profit';renderList()">📊 กำไร/ขาดทุน</button>` : ''}
-    <button class="vt-btn ${expView==='detail'?'active':''}" onclick="expView='detail';renderList()">📋 รายละเอียดหมวด</button>
-    <button class="btn primary" style="padding:6px 14px;font-size:13px;" onclick="openExpenseModal()">➕ เพิ่ม/แก้ไขรายจ่าย</button>
+    <button class="vt-btn ${expView==='monthly'?'active':''}" onclick="window.setExpView('monthly'); window.renderList()">📅 รายเดือน</button>
+    <button class="vt-btn ${expView==='annual'?'active':''}" onclick="window.setExpView('annual'); window.renderList()">📆 รายปี</button>
+    ${(canAccess('expense_profit') && !currentUser?.permissions?.expense_noprofit) ? `<button class="vt-btn ${expView==='profit'?'active':''}" onclick="window.setExpView('profit'); window.renderList()">📊 กำไร/ขาดทุน</button>` : ''}
+    <button class="vt-btn ${expView==='detail'?'active':''}" onclick="window.setExpView('detail'); window.renderList()">📋 รายละเอียดหมวด</button>
+    <button class="btn primary" style="padding:6px 14px;font-size:13px;" onclick="window.openExpenseModal()">➕ เพิ่ม/แก้ไขรายจ่าย</button>
   </div>`;
 
   if(expView==='monthly') return ctrl + renderExpMonthly(allYears);
@@ -907,12 +907,12 @@ function openExpenseModal(year, month){
       <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;">
         <select id="expYearSel" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;">${yearOpts}</select>
         <select id="expMonSel" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;">${monOpts}</select>
-        <button class="btn ghost" style="font-size:12px;padding:6px 12px;" onclick="reloadExpModal()">🔄 โหลด</button>
+        <button class="btn ghost" style="font-size:12px;padding:6px 12px;" onclick="window.reloadExpModal()">🔄 โหลด</button>
       </div>
       <div style="background:var(--surface-1);border-radius:8px;padding:12px;margin-bottom:14px;">${catFields}</div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button class="btn ghost" onclick="$('expModalOverlay').style.display='none'">ยกเลิก</button>
-        <button class="btn primary" onclick="saveExpenseModal()">💾 บันทึก</button>
+        <button class="btn primary" onclick="window.saveExpenseModal()">💾 บันทึก</button>
       </div>
     </div>`;
   $('expModalOverlay').style.display='flex';
@@ -2426,7 +2426,7 @@ function renderList(){
         ${mOpts}
         <optgroup label="รวมทั้งปี">${yOpts}</optgroup>
       </select>
-      ${tableMonthFilter ? `<button class="btn ghost" style="font-size:12px;padding:5px 12px;" onclick="tableMonthFilter=null;renderList();">✕ ล้างตัวกรอง</button>` : ''}
+      ${tableMonthFilter ? `<button class="btn ghost" style="font-size:12px;padding:5px 12px;" onclick="window.setTableMonthFilter(null); window.renderList();">✕ ล้างตัวกรอง</button>` : ''}
       <span style="font-size:12px;color:var(--ink-soft);align-self:center;">${list.length} งาน</span>
     </div>`;
 
@@ -2553,7 +2553,7 @@ function renderTicket(j){
       ${j.cancelled?'<div style="background:#F0E0E0;color:var(--stamp-red);font-size:12.5px;font-weight:700;padding:6px 14px;">❌ งานนี้ถูกยกเลิกแล้ว</div>':''}
       ${j.pendingDelete?`<div style="background:#FEF0D0;color:#7A5605;font-size:12px;font-weight:700;padding:6px 14px;display:flex;align-items:center;gap:8px;">
         🗑 ${escapeHtml(j.pendingDeleteBy||'?')} ขออนุมัติลบงานนี้
-        ${currentUser?.role==='manager'?`<button onclick="approveDelete('${j.id}')" class="btn" style="padding:3px 10px;font-size:11.5px;background:#C0392B;color:#fff;">✓ อนุมัติ</button><button onclick="rejectDelete('${j.id}')" class="btn ghost" style="padding:3px 10px;font-size:11.5px;">✕ ปฏิเสธ</button>`:'<span style="color:#7A5605;font-size:11px;">(รอ Manager)</span>'}
+        ${currentUser?.role==='manager'?`<button onclick="window.approveDelete('${j.id}')" class="btn" style="padding:3px 10px;font-size:11.5px;background:#C0392B;color:#fff;">✓ อนุมัติ</button><button onclick="window.rejectDelete('${j.id}')" class="btn ghost" style="padding:3px 10px;font-size:11.5px;">✕ ปฏิเสธ</button>`:'<span style="color:#7A5605;font-size:11px;">(รอ Manager)</span>'}
       </div>`:''}
       ${overdueBanner}
       <div class="ticket-head">
@@ -2664,7 +2664,7 @@ function openManualSalesModal(){
       <div style="background:var(--surface-1);border-radius:8px;padding:10px;">${catFields}</div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
         <button class="btn ghost" onclick="$('expModalOverlay').style.display='none'">ยกเลิก</button>
-        <button class="btn primary" onclick="saveManualSales()">💾 บันทึก</button>
+        <button class="btn primary" onclick="window.saveManualSales()">💾 บันทึก</button>
       </div>
     </div>`;
   $('expModalOverlay').style.display='flex';
@@ -3154,7 +3154,7 @@ function renderSummaryView(){
       <div style="margin-left:auto;background:#FEF9E7;border:1px solid #F7DC6F;border-radius:7px;padding:6px 13px;font-size:12px;color:#7D6608;white-space:nowrap;align-self:center;">
         ⚠ จำนวนงาน/ตัว มีข้อมูลจริงเฉพาะตั้งแต่ กค. 69
       </div>
-      <button class="btn ghost" style="padding:6px 12px;font-size:12.5px;white-space:nowrap;" onclick="openManualSalesModal()">➕ เพิ่มยอดขาย Manual</button>
+      <button class="btn ghost" style="padding:6px 12px;font-size:12.5px;white-space:nowrap;" onclick="window.openManualSalesModal()">➕ เพิ่มยอดขาย Manual</button>
     </div>
     ${ctFilterHtml}
     ${periodPickerHtml}
