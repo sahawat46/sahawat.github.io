@@ -911,7 +911,7 @@ function openExpenseModal(year, month){
       </div>
       <div style="background:var(--surface-1);border-radius:8px;padding:12px;margin-bottom:14px;">${catFields}</div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button class="btn ghost" onclick="$('expModalOverlay').style.display='none'">ยกเลิก</button>
+        <button class="btn ghost" onclick="document.getElementById('expModalOverlay').style.display='none'">ยกเลิก</button>
         <button class="btn primary" onclick="window.saveExpenseModal()">💾 บันทึก</button>
       </div>
     </div>`;
@@ -2663,7 +2663,7 @@ function openManualSalesModal(){
       <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">ใส่ยอดขาย (ก่อนแวท) แยกตามประเภทลูกค้า ช่องที่ไม่มีใส่ 0</div>
       <div style="background:var(--surface-1);border-radius:8px;padding:10px;">${catFields}</div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
-        <button class="btn ghost" onclick="$('expModalOverlay').style.display='none'">ยกเลิก</button>
+        <button class="btn ghost" onclick="document.getElementById('expModalOverlay').style.display='none'">ยกเลิก</button>
         <button class="btn primary" onclick="window.saveManualSales()">💾 บันทึก</button>
       </div>
     </div>`;
