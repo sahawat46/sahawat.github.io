@@ -4351,6 +4351,24 @@ setInterval(checkEmailReminders, 5*60000);
   // override the init function if it existed to use the injected supabase
   // Original code uses createClient('url', 'key'). We already have window._sb.
   // Let's just mock window.supabase.createClient to return window._sb if it calls it
+  
+  
+  window.openUserModal = openUserModal;
+  window.closeUserModal = closeUserModal;
+  window.saveUserAccount = saveUserAccount;
+  window.tryLogin = tryLogin;
+
+  window.setExpView = (val) => { expView = val; };
+  window.setTableMonthFilter = (val) => { tableMonthFilter = val; };
+  window.renderList = renderList;
+  window.openExpenseModal = openExpenseModal;
+  window.reloadExpModal = reloadExpModal;
+  window.saveExpenseModal = saveExpenseModal;
+  window.approveDelete = approveDelete;
+  window.rejectDelete = rejectDelete;
+  window.saveManualSales = saveManualSales;
+  window.openManualSalesModal = openManualSalesModal;
+
   window.supabase = {
     createClient: () => window._sb
   };

@@ -38,7 +38,7 @@ export default function Home() {
       </div>
     </div>
     <div className="login-err" id="loginErr"></div>
-    <button className="btn primary" id="loginBtn" style={{"width":"100%","marginTop":"6px"}}>เข้าสู่ระบบ</button>
+    <button className="btn primary" id="loginBtn" style={{"width":"100%","marginTop":"6px"}} onClick={() => { if(window.tryLogin) window.tryLogin(); }}>เข้าสู่ระบบ</button>
   </div>
 </div>
 
@@ -55,7 +55,7 @@ export default function Home() {
       </div>
       <div style={{"display":"flex","gap":"8px","alignItems":"center"}}>
         <div className="topbar-user" id="topbarUser"></div>
-        <button className="topbtn secondary" id="manageUsersBtn" style={{"display":"none"}}>👥 <span className="full">จัดการผู้ใช้งาน</span></button>
+        <button className="topbtn secondary" id="manageUsersBtn" style={{"display":"none"}} onClick={() => { if(window.openUserModal) window.openUserModal(); }}>👥 <span className="full">จัดการผู้ใช้งาน</span></button>
         <button className="topbtn ghost" id="sbSetupBtn" title="ตั้งค่า Supabase Cloud" style={{"fontSize":"12px","padding":"5px 10px"}}>☁️ Cloud</button>
         <button className="topbtn secondary" id="exportBtn">⭳ <span className="full">ดาวน์โหลด Excel</span></button>
         <button className="topbtn secondary" id="addLeadBtn">🧲 <span className="full">เพิ่ม Lead ใหม่</span></button>
@@ -209,7 +209,7 @@ export default function Home() {
 </div>
 
 {/*  User management modal (manager only)  */}
-<div className="modal-overlay" id="userModalOverlay">
+<div className="modal-overlay" id="userModalOverlay" onClick={(e) => { if(e.target.id === "userModalOverlay" && window.closeUserModal) window.closeUserModal(); }}>
   <div className="modal">
     <h2>👥 จัดการผู้ใช้งาน</h2>
     <p style={{"fontSize":"12.5px","color":"var(--ink-soft)","marginTop":"-8px"}}>Manager (แอร์ / ออย / เอก / เอ็กซ์) เป็นผู้กำหนด username และรหัสผ่าน 6 หลักให้สมาชิกแต่ละคน</p>
@@ -269,8 +269,8 @@ export default function Home() {
       </div>
     </div>
     <div className="modal-actions">
-      <button className="btn ghost" id="userCancelBtn">ยกเลิก</button>
-      <button className="btn primary" id="userSaveBtn">บันทึกผู้ใช้งาน</button>
+      <button className="btn ghost" id="userCancelBtn" onClick={() => { if(window.closeUserModal) window.closeUserModal(); }}>ยกเลิก</button>
+      <button className="btn primary" id="userSaveBtn" onClick={() => { if(window.saveUserAccount) window.saveUserAccount(); }}>บันทึกผู้ใช้งาน</button>
     </div>
   </div>
 </div>
