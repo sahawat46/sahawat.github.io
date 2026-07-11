@@ -673,15 +673,25 @@ function seedExpenses(){
 
 async function loadExpenses(){
   try {
-    const res = await window.storage.get("expenses", true);
-    expenses = res && res.value ? JSON.parse(res.value) : [];
+    if(_useSupabase){
+      const { data } = await window._sb.from('app_kv').select('value').eq('key','expenses').maybeSingle();
+      expenses = data?.value ? JSON.parse(JSON.stringify(data.value)) : [];
+    } else {
+      const res = await window.storage.get("expenses", true);
+      expenses = res && res.value ? JSON.parse(res.value) : [];
+    }
   } catch(e){ expenses=[]; }
   if(!expenses.length){ expenses=seedExpenses(); await saveExpenses(); }
 }
 
 async function saveExpenses(){
-  try { await window.storage.set("expenses", JSON.stringify(expenses), true); }
-  catch(e){ console.error('saveExpenses',e); }
+  try {
+    if(_useSupabase){
+      await window._sb.from('app_kv').upsert({ key:'expenses', value:expenses, updated_at:new Date().toISOString() });
+    } else {
+      await window.storage.set("expenses", JSON.stringify(expenses), true);
+    }
+  } catch(e){ console.error('saveExpenses',e); }
 }
 
 function getExpMonth(year, month){
@@ -1329,7 +1339,7 @@ function requireManager(){
 function renderUserList(){
   const box = $("userListBox");
   if(!users.length){ box.innerHTML = `<div style="padding:10px;color:var(--ink-soft);font-size:13px;">ยังไม่มีผู้ใช้งาน</div>`; return; }
-  box.innerHTML = users.slice().sort((a,b)=>a.name.localeCompare(b.name,'th')).map(u=>`
+  box.innerHTML = users.slice().filter(u=>u&&u.name).sort((a,b)=>String(a.name).localeCompare(String(b.name),'th')).map(u=>`
     <div class="user-row">
       <span class="urole ${u.role}">${(USER_ROLES[u.role]||USER_ROLES.staff).label}</span>
       <span class="uname">${escapeHtml(u.name)}${u.active===false?' (ปิดใช้งาน)':''}</span>
@@ -2696,7 +2706,13 @@ async function saveManualSales(){
       added++;
     }
   });
-  try{ await window.storage.set("historicalSalesV2", JSON.stringify(historicalSales), true); }catch(e){}
+  try{
+    if(_useSupabase){
+      await window._sb.from('app_kv').upsert({ key:'historicalSalesV2', value:historicalSales, updated_at:new Date().toISOString() });
+    } else {
+      await window.storage.set("historicalSalesV2", JSON.stringify(historicalSales), true);
+    }
+  }catch(e){}
   $('expModalOverlay').style.display='none';
   const TH_MONTHS_ABBR = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   toast(`✓ บันทึกยอดขาย ${added} ประเภท เดือน ${TH_MONTHS_ABBR[m-1]} ปี ${y+543}`);
