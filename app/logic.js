@@ -1622,7 +1622,7 @@ function addProductRow(){
 function recalcTotalQty(){
   const box = $("f_productRows");
   if(!box) return;
-  const total = [...box.querySelectorAll('.prod-qty')].reduce((s,inp)=>s+(parseInt(inp.value)||0),0);
+  const total = [...box.querySelectorAll('.prod-qty')].reduce((s,inp)=>s+(parseInt(inp.value.replace(/,/g, ''))||0),0);
   const qtyField = $("f_qty");
   if(qtyField) qtyField.value = total || "";
 }
@@ -1632,7 +1632,7 @@ function getProductItems(){
   if(!box) return [];
   return [...box.querySelectorAll('.product-row')].map(row=>({
     type: row.querySelector('.prod-type').value,
-    qty: parseInt(row.querySelector('.prod-qty').value)||0
+    qty: parseInt(row.querySelector('.prod-qty').value.replace(/,/g, ''))||0
   })).filter(item=>item.type || item.qty);
 }
 
@@ -1815,10 +1815,16 @@ async function saveLeadFromModal(){
 
 async function deleteLead(id){
   if(!confirm("ลบ Lead นี้ใช่หรือไม่?")) return;
-  leads = leads.filter(l=>l.id!==id);
-  await saveLeads();
-  if(currentView==='leads') renderList();
-  toast("ลบ Lead แล้ว");
+  try {
+    await deleteLeadFromDB(id);
+    if(_useSupabase){
+      leads = leads.filter(l=>l.id!==id);
+    }
+    if(currentView==='leads') renderList();
+    toast("ลบ Lead แล้ว");
+  } catch(e) {
+    toast("ลบ Lead ไม่สำเร็จ: " + e.message);
+  }
 }
 
 // ข้อ: Lead ที่มีงาน/ออเดอร์อ้างอิงมา ถือว่า "สำเร็จ"
@@ -3965,7 +3971,7 @@ function parseSahawathHTML(html){
 
 function applyQuickFill(){
   const qt  = ($("qf_qt")||{}).value||"";
-  const qty = parseInt(($("qf_qty")||{}).value||"0")||0;
+  const qty = parseInt(($("qf_qty")||{}).value?.replace(/,/g, "")||"0")||0;
   const amt = parseFloat(($("qf_amt")||{}).value?.replace(/,/g, "")||"0")||0;
   let filled = [];
   if(qt){ $("f_quote").value=qt.trim(); filled.push("เลขที่ "+qt.trim()); }
@@ -4075,7 +4081,7 @@ async function saveFromModal(){
     status: $("f_status").value.trim(),
     deliveryDate: $("f_deliveryDate").value,
     salesAmount: parseFloat($("f_salesAmount").value.replace(/,/g, ''))||0,
-    qty: parseInt($("f_qty").value)||0,
+    qty: parseInt($("f_qty").value.replace(/,/g, ''))||0,
     productItems: getProductItems(),
     customerType: $("f_customerType").value,
     countInSales: $("f_countInSales").checked,
