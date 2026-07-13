@@ -1166,8 +1166,14 @@ async function saveUsers(){
         if (u.db_id) row.id = u.db_id;
         return row;
       });
-      const { error } = await _sb.from('users_tbl').upsert(rows);
+      const { data, error } = await _sb.from('users_tbl').upsert(rows).select('id, user_data');
       if(error) throw error;
+      if(data){
+        data.forEach(r => {
+          const localU = users.find(x => x.id === r.user_data?.id);
+          if(localU) localU.db_id = r.id;
+        });
+      }
     } else {
       await window.storage.set("users", JSON.stringify(users), true);
     }
@@ -1454,6 +1460,10 @@ async function deleteUserAccount(id){
     return;
   }
   if(!confirm("ลบผู้ใช้งานนี้ใช่หรือไม่?")) return;
+  if(_useSupabase && u?.db_id){
+    const { error } = await _sb.from('users_tbl').delete().eq('id', u.db_id);
+    if(error){ toast("ลบจากฐานข้อมูลไม่สำเร็จ: " + error.message); return; }
+  }
   users = users.filter(x=>x.id!==id);
   await saveUsers();
   renderUserList();
@@ -3534,7 +3544,7 @@ function bindTicketEvents(){
   document.querySelectorAll('[data-status]').forEach(inp=>{
     inp.onchange = async ()=>{
       const j = jobs.find(x=>x.id===inp.dataset.status);
-      if(j){ j.status = inp.value; await saveJobs(); toast("อัพเดตสถานะแล้ว"); }
+      if(j){ j.status = inp.value; await saveSingleJob(j.id); toast("อัพเดตสถานะแล้ว"); }
     };
   });
   document.querySelectorAll('.step, .pchip[data-stage]').forEach(stepEl=>{
@@ -3589,7 +3599,7 @@ function handleStageClick(e, stepEl){
       maybeClearAwaitingRealOrder(job);
       closePopover();
       render();
-      await saveJobs();
+      await saveSingleJob(job.id);
       toast(`บันทึก "${stageDef.label}" โดย ${btn.dataset.person}`);
     };
   });
@@ -3599,7 +3609,7 @@ function handleStageClick(e, stepEl){
       st.done=false; st.by=""; st.at=null;
       closePopover();
       render();
-      await saveJobs();
+      await saveSingleJob(job.id);
       toast(`ยกเลิกสถานะ "${stageDef.label}"`);
     };
   }
@@ -3617,7 +3627,7 @@ async function cancelJob(id){
   if(!confirm(`ยืนยันยกเลิกงาน "${j.job||'ไม่มีชื่องาน'}" ใช่หรือไม่?`)) return;
   j.cancelled = true;
   j.cancelledAt = Date.now();
-  await saveJobs();
+  await saveSingleJob(id);
   render();
   toast("ยกเลิกงานแล้ว");
 }
@@ -4220,7 +4230,7 @@ $("emailSentBtn").onclick = async ()=>{
       if(j.stages && !j.stages.summary?.done){
         j.stages.summary = { done: true, by: currentUser?.name || "", at: Date.now() };
       }
-      await saveJobs();
+      await saveSingleJob(j.id);
       render();
     }
   }
@@ -4235,7 +4245,7 @@ $("emailNotSentBtn").onclick = async ()=>{
       if(!j.emailReminder || j.emailReminder.date !== todayKey()){
         j.emailReminder = { date: todayKey(), count: 1, lastAt: Date.now() };
       }
-      await saveJobs();
+      await saveSingleJob(j.id);
       render();
     }
   }
