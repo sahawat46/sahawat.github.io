@@ -908,7 +908,7 @@ function openExpenseModal(year, month){
   const catFields = EXP_CAT_KEYS.map(key=>`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       <label style="width:260px;font-size:12.5px;flex-shrink:0;">${escapeHtml(EXP_CAT_LABELS[key])}</label>
-      <input type="number" id="exp_${key}" value="${existing?(existing.cats[key]||0):0}" min="0" style="width:130px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:right;">
+      <input type="text" inputMode="decimal" id="exp_${key}" value="${existing?(existing.cats[key]||0):0}" min="0" style="width:130px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:right;">
     </div>`).join('');
 
   $('expModalOverlay').innerHTML = `
@@ -938,7 +938,7 @@ async function saveExpenseModal(){
   const y = Number($('expYearSel').value);
   const m = Number($('expMonSel').value);
   const cats = {};
-  EXP_CAT_KEYS.forEach(key=>{ cats[key] = Number($('exp_'+key).value)||0; });
+  EXP_CAT_KEYS.forEach(key=>{ cats[key] = Number($('exp_'+key).value.replace(/,/g,""))||0; });
   const existing = getExpMonth(y, m);
   if(existing){ existing.cats=cats; }
   else { expenses.push({id:'exp_'+y+'_'+m, year:y, month:m, cats, createdAt:Date.now()}); }
@@ -2658,7 +2658,7 @@ function openManualSalesModal(){
   const catFields = CUSTOMER_TYPES.map(ct=>`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       <label style="width:200px;font-size:12.5px;flex-shrink:0;">${escapeHtml(ct)}</label>
-      <input type="number" id="msale_${ct.replace(/[^a-zA-Zก-๙]/g,'_')}" value="${existing[ct]||0}" min="0"
+      <input type="text" inputMode="decimal" id="msale_${ct.replace(/[^a-zA-Zก-๙]/g,'_')}" value="${existing[ct]||0}" min="0"
         style="width:140px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:right;">
     </div>`).join('');
 
@@ -2700,7 +2700,7 @@ async function saveManualSales(){
   let added = 0;
   CUSTOMER_TYPES.forEach(ct=>{
     const el = $('msale_'+ct.replace(/[^a-zA-Zก-๙]/g,'_'));
-    const v = Number(el?.value)||0;
+    const v = Number(el?.value.replace(/,/g,""))||0;
     if(v>0){
       historicalSales.push({ id:'manual_'+y+'_'+m+'_'+ct.replace(/\s/g,''), year:y, month:m, customerType:ct, amount:v, manual:true });
       added++;
@@ -3956,7 +3956,7 @@ function parseSahawathHTML(html){
 function applyQuickFill(){
   const qt  = ($("qf_qt")||{}).value||"";
   const qty = parseInt(($("qf_qty")||{}).value||"0")||0;
-  const amt = parseFloat(($("qf_amt")||{}).value||"0")||0;
+  const amt = parseFloat(($("qf_amt")||{}).value?.replace(/,/g, "")||"0")||0;
   let filled = [];
   if(qt){ $("f_quote").value=qt.trim(); filled.push("เลขที่ "+qt.trim()); }
   if(qty){ $("f_qty").value=qty; filled.push("จำนวน "+qty+" ตัว"); }
@@ -4064,7 +4064,7 @@ async function saveFromModal(){
     type: $("f_type").value,
     status: $("f_status").value.trim(),
     deliveryDate: $("f_deliveryDate").value,
-    salesAmount: parseFloat($("f_salesAmount").value)||0,
+    salesAmount: parseFloat($("f_salesAmount").value.replace(/,/g, ''))||0,
     qty: parseInt($("f_qty").value)||0,
     productItems: getProductItems(),
     customerType: $("f_customerType").value,

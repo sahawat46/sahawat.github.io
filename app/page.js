@@ -157,7 +157,7 @@ export default function Home() {
     <div className="field-row">
       <div className="field">
         <label>ยอดขาย (ก่อนแวท ไม่รวมค่าส่ง)</label>
-        <input type="number" id="f_salesAmount" placeholder="0.00" step="0.01" min="0" />
+        <input type="text" inputMode="decimal" id="f_salesAmount" placeholder="0.00" />
       </div>
       <div className="field">
         <label>จำนวนตัว (รวมทุกชนิด — คำนวณอัตโนมัติ)</label>
