@@ -343,8 +343,9 @@ async function saveSingleJob(jobId, forceOverwrite=false){
   if(!j) return true;
   if(_useSupabase){
     // ตรวจ conflict
-    if(!forceOverwrite && _editingVersion){
-      const conflict = await checkConflict('jobs', jobId, _editingVersion);
+    const verToCheck = _editingVersion || j._v || 1;
+    if(!forceOverwrite){
+      const conflict = await checkConflict('jobs', jobId, verToCheck);
       if(conflict){
         return new Promise(resolve=>{
           $('conflictMsg').innerHTML =
@@ -360,8 +361,13 @@ async function saveSingleJob(jobId, forceOverwrite=false){
             $('conflictDialog').style.display='none';
             await loadJobs(); closeModal(); resolve(false);
           };
-          $('conflictCancel').onclick=()=>{
-            $('conflictDialog').style.display='none'; resolve(false);
+          $('conflictCancel').onclick=async()=>{
+            $('conflictDialog').style.display='none';
+            const modalOpen = $("modalOverlay")?.classList.contains("open");
+            if(!modalOpen){
+              await loadJobs();
+            }
+            resolve(false);
           };
         });
       }
