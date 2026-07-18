@@ -3648,7 +3648,7 @@ async function uncancelJob(id){
   if(!j) return;
   j.cancelled = false;
   j.cancelledAt = null;
-  await saveJobs();
+  await saveSingleJob(id);
   render();
   toast("ยกเลิกการยกเลิกงานแล้ว");
 }
