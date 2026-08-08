@@ -693,11 +693,12 @@ async function loadExpenses(){
 async function saveExpenses(){
   try {
     if(_useSupabase){
-      await window._sb.from('app_kv').upsert({ key:'expenses', value:expenses, updated_at:new Date().toISOString() });
+      const { error } = await window._sb.from('app_kv').upsert({ key:'expenses', value:expenses, updated_at:new Date().toISOString() });
+      if(error){ console.error('saveExpenses error:', error); throw error; }
     } else {
       await window.storage.set("expenses", JSON.stringify(expenses), true);
     }
-  } catch(e){ console.error('saveExpenses',e); }
+  } catch(e){ console.error('saveExpenses',e); throw e; }
 }
 
 function getExpMonth(year, month){
@@ -921,8 +922,8 @@ function openExpenseModal(year, month){
     <div style="background:var(--white);border-radius:14px;padding:24px 28px;max-width:600px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
       <h2 style="margin-bottom:16px;">💰 ${existing?'แก้ไข':'เพิ่ม'}ค่าใช้จ่าย</h2>
       <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;">
-        <select id="expYearSel" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;">${yearOpts}</select>
-        <select id="expMonSel" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;">${monOpts}</select>
+        <select id="expYearSel" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;" onchange="window.reloadExpModal()">${yearOpts}</select>
+        <select id="expMonSel" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;" onchange="window.reloadExpModal()">${monOpts}</select>
         <button class="btn ghost" style="font-size:12px;padding:6px 12px;" onclick="window.reloadExpModal()">🔄 โหลด</button>
       </div>
       <div style="background:var(--surface-1);border-radius:8px;padding:12px;margin-bottom:14px;">${catFields}</div>
@@ -941,17 +942,28 @@ function reloadExpModal(){
 }
 
 async function saveExpenseModal(){
-  const y = Number($('expYearSel').value);
-  const m = Number($('expMonSel').value);
-  const cats = {};
-  EXP_CAT_KEYS.forEach(key=>{ cats[key] = Number($('exp_'+key).value.replace(/,/g,""))||0; });
-  const existing = getExpMonth(y, m);
-  if(existing){ existing.cats=cats; }
-  else { expenses.push({id:'exp_'+y+'_'+m, year:y, month:m, cats, createdAt:Date.now()}); }
-  await saveExpenses();
-  $('expModalOverlay').style.display='none';
-  toast('💰 บันทึกค่าใช้จ่าย '+String(m).padStart(2,'0')+'/'+((y+543))+' แล้วค่ะ');
-  if(currentView==='expense') renderList();
+  try {
+    const yearEl = $('expYearSel');
+    const monEl = $('expMonSel');
+    const y = Number(yearEl?.value || expEditYear || new Date().getFullYear());
+    const m = Number(monEl?.value || expEditMonth || (new Date().getMonth()+1));
+    const cats = {};
+    EXP_CAT_KEYS.forEach(key=>{
+      const el = $('exp_'+key);
+      const vStr = el?.value ? el.value.replace(/,/g,"") : "0";
+      cats[key] = Number(vStr)||0;
+    });
+    const existing = getExpMonth(y, m);
+    if(existing){ existing.cats=cats; }
+    else { expenses.push({id:'exp_'+y+'_'+m, year:y, month:m, cats, createdAt:Date.now()}); }
+    await saveExpenses();
+    const overlay = $('expModalOverlay');
+    if(overlay) overlay.style.display='none';
+    toast('💰 บันทึกค่าใช้จ่าย '+String(m).padStart(2,'0')+'/'+((y+543))+' แล้วค่ะ');
+    if(currentView==='expense') renderList();
+  } catch(err) {
+    alert('❌ บันทึกค่าใช้จ่ายไม่สำเร็จ: ' + (err.message || err));
+  }
 }
 
 
