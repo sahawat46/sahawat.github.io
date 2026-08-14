@@ -65,7 +65,7 @@ export default function Home() {
     <div className="toolbar">
       <div className="search-wrap">
         <span className="search-icon">⌕</span>
-        <input id="searchInput" placeholder="ค้นหา: ชื่องาน / เลขใบเสนอราคา / ชื่อลูกค้า..." />
+        <input id="searchInput" placeholder="ค้นหา: ชื่องาน / เลขใบเสนอราคา / ชื่อลูกค้า / ชื่อ Manager..." />
       </div>
       <select className="filt" id="filterSeller">
         <option value="">ทุกเซลล์</option>
