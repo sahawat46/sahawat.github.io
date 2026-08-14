@@ -1674,6 +1674,13 @@ function populateSellerSelect(){
   // populate toolbar seller filter
   const fsCur = $("filterSeller").value;
   $("filterSeller").innerHTML = `<option value="">ทุกเซลล์</option>` + sellers.map(s=>`<option value="${s}" ${s===fsCur?'selected':''}>${s}</option>`).join("");
+  // populate toolbar manager filter (แยกจากเซลล์ แม้เมเนเจอร์บางคนจะมีสถานะเป็นเซลล์ด้วย)
+  const filterManagerEl = $("filterManager");
+  if(filterManagerEl){
+    const fmCur = filterManagerEl.value;
+    filterManagerEl.innerHTML = `<option value="">ทุกเมเนเจอร์</option>` + mgrList.map(m=>`<option value="${m}" ${m===fmCur?'selected':''}>${m}</option>`).join("");
+    if(fmCur && mgrList.includes(fmCur)) filterManagerEl.value = fmCur;
+  }
   $("f_customerType").innerHTML = CUSTOMER_TYPES.map(c=>`<option value="${c}">${c}</option>`).join("");
   $("l_channel").innerHTML = LEAD_CHANNELS.map(c=>`<option value="${c}">${c}</option>`).join("");
   $("l_province").innerHTML = `<option value="">— เลือกจังหวัด —</option>` + THAI_PROVINCES.map(p=>`<option value="${p}">${p}</option>`).join("");
@@ -2374,6 +2381,7 @@ function getFiltered(){
   const ftype = $("filterType").value;
   const fstage = $("filterStage").value;
   const fseller = $("filterSeller").value;
+  const fmanager = $("filterManager") ? $("filterManager").value : "";
   const dateFrom = $("filterDateFrom").value;
   const dateTo = $("filterDateTo").value;
 
@@ -2406,11 +2414,12 @@ function getFiltered(){
         }
       }
     }
+    if(fmanager && j.manager!==fmanager) return false;
     if(q){
-      // ข้อ 6: ค้นหาตามชื่อลูกค้า/บริษัทใน Lead ที่อ้างอิง, ชื่องาน, เลขใบเสนอราคา, ชื่อ Manager/เซลล์ ฯลฯ
+      // ข้อ 6: ค้นหาตามชื่อลูกค้า/บริษัทใน Lead ที่อ้างอิง, ชื่องาน, เลขใบเสนอราคา ฯลฯ
       const linkedLead = j.leadId ? leads.find(l=>l.id===j.leadId) : null;
       const leadName = linkedLead ? [linkedLead.customerName, linkedLead.companyName].join(" ") : "";
-      const hay = [j.job, j.quote, j.detail, formatDate(j.date), j.date, j.status, j.customerType, leadName, j.manager, j.seller].join(" ").toLowerCase();
+      const hay = [j.job, j.quote, j.detail, formatDate(j.date), j.date, j.status, j.customerType, leadName].join(" ").toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
@@ -4179,6 +4188,7 @@ $("exportBtn").onclick = exportExcel;
 $("searchInput").oninput = ()=>{ tablePage=0; renderList(); };
 $("filterType").onchange = ()=>{ tablePage=0; renderList(); renderSummary(); };
 $("filterSeller").onchange = ()=>{ tablePage=0; renderList(); renderSummary(); };
+if($("filterManager")) $("filterManager").onchange = ()=>{ tablePage=0; renderList(); renderSummary(); };
 $("filterStage").onchange = ()=>{ tablePage=0; renderList(); renderSummary(); };
 
 // ข้อ 7: Date range filter
