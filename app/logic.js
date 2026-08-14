@@ -678,16 +678,19 @@ function seedExpenses(){
 }
 
 async function loadExpenses(){
+  let loadFailed = false;
   try {
     if(_useSupabase){
-      const { data } = await window._sb.from('app_kv').select('value').eq('key','expenses').maybeSingle();
+      const { data, error } = await window._sb.from('app_kv').select('value').eq('key','expenses').maybeSingle();
+      if(error) throw error;
       expenses = data?.value ? JSON.parse(JSON.stringify(data.value)) : [];
     } else {
       const res = await window.storage.get("expenses", true);
       expenses = res && res.value ? JSON.parse(res.value) : [];
     }
-  } catch(e){ expenses=[]; }
-  if(!expenses.length){ expenses=seedExpenses(); await saveExpenses(); }
+  } catch(e){ console.error('loadExpenses',e); expenses=[]; loadFailed = true; }
+  // อย่า seed+เซฟทับข้อมูลจริง ถ้าโหลดไม่สำเร็จ (เช่น เน็ตหลุดชั่วคราว) — เดี๋ยวจะเขียนทับข้อมูลที่มีอยู่จริงบน Supabase
+  if(!loadFailed && !expenses.length){ expenses=seedExpenses(); await saveExpenses(); }
 }
 
 async function saveExpenses(){
@@ -719,10 +722,10 @@ let expSelYears = []; // สำหรับเปรียบเทียบส�
 let expEditYear = null, expEditMonth = null;
 
 function renderExpenseView(){
-  // fallback: ถ้า expenses ว่าง ให้ seed จาก EXPENSE_SEED ทันที
+  // fallback: ถ้า expenses ว่าง (ยังไม่ได้โหลดหรือโหลดไม่สำเร็จ) ให้ seed จาก EXPENSE_SEED เพื่อแสดงผลชั่วคราว
+  // หมายเหตุ: จงใจไม่บันทึกทับ Supabase ตรงนี้ เพื่อกันข้อมูลจริงหายกรณี expenses ยังโหลดไม่เสร็จ
   if(!expenses || !expenses.length){
     expenses = seedExpenses();
-    saveExpenses().catch(()=>{});
   }
   const allYears = [...new Set(expenses.map(e=>e.year))].sort((a,b)=>a-b);
   const yearOpts = allYears.map(y=>`<option value="${y}" ${y===expYear?'selected':''}>${y+543}</option>`).join('');
@@ -4368,6 +4371,7 @@ async function _bootstrapData(){
   loadJobs();
   loadLeads();
   await loadHistoricalSales();
+  await loadExpenses();
   if(currentView==='summary') renderList();
 
   // ถ้าใช้ window.storage (ไม่ใช่ Supabase) → ยังคง poll ทุก 8 วินาที
