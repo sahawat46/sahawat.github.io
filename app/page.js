@@ -65,10 +65,13 @@ export default function Home() {
     <div className="toolbar">
       <div className="search-wrap">
         <span className="search-icon">⌕</span>
-        <input id="searchInput" placeholder="ค้นหา: ชื่องาน / เลขใบเสนอราคา / ชื่อลูกค้า / ชื่อ Manager..." />
+        <input id="searchInput" placeholder="ค้นหา: ชื่องาน / เลขใบเสนอราคา / ชื่อลูกค้า..." />
       </div>
       <select className="filt" id="filterSeller">
         <option value="">ทุกเซลล์</option>
+      </select>
+      <select className="filt" id="filterManager">
+        <option value="">ทุกเมเนเจอร์</option>
       </select>
       <select className="filt" id="filterType">
         <option value="">ทุกประเภท</option>
