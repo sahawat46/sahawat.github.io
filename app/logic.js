@@ -2407,10 +2407,10 @@ function getFiltered(){
       }
     }
     if(q){
-      // ข้อ 6: ค้นหาตามชื่อลูกค้า/บริษัทใน Lead ที่อ้างอิง, ชื่องาน, เลขใบเสนอราคา ฯลฯ
+      // ข้อ 6: ค้นหาตามชื่อลูกค้า/บริษัทใน Lead ที่อ้างอิง, ชื่องาน, เลขใบเสนอราคา, ชื่อ Manager/เซลล์ ฯลฯ
       const linkedLead = j.leadId ? leads.find(l=>l.id===j.leadId) : null;
       const leadName = linkedLead ? [linkedLead.customerName, linkedLead.companyName].join(" ") : "";
-      const hay = [j.job, j.quote, j.detail, formatDate(j.date), j.date, j.status, j.customerType, leadName].join(" ").toLowerCase();
+      const hay = [j.job, j.quote, j.detail, formatDate(j.date), j.date, j.status, j.customerType, leadName, j.manager, j.seller].join(" ").toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
