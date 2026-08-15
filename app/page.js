@@ -177,7 +177,7 @@ export default function Home() {
       <select id="f_customerType"></select>
     </div>
     <div className="field-check">
-      <input type="checkbox" id="f_countInSales" checked />
+      <input type="checkbox" id="f_countInSales" defaultChecked />
       <label for="f_countInSales">นับเป็นยอดขาย</label>
     </div>
     <div className="field" style={{"position":"relative"}} id="f_leadWrapper">
