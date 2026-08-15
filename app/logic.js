@@ -3844,10 +3844,32 @@ function handleStageClick(e, stepEl){
   if(undoBtn){
     undoBtn.onclick = async ()=>{
       st.done=false; st.by=""; st.at=null;
+
+      // ข้อ: ถ้ามีสถานะก่อนหน้าที่ระบบติ๊กให้อัตโนมัติ (N/A) ค้างอยู่ ให้ถามว่าจะยกเลิกไปด้วยกันมั้ย
+      const curStageIdx = STAGES.findIndex(s=>s.key===stageKey);
+      const autoFilledPrevKeys = [];
+      for(let i=0;i<curStageIdx;i++){
+        const prevKey = STAGES[i].key;
+        const prevSt = job.stages[prevKey];
+        if(prevSt && prevSt.done && prevSt.by==='N/A'){
+          autoFilledPrevKeys.push(prevKey);
+        }
+      }
+      let undidPrevToo = false;
+      if(autoFilledPrevKeys.length){
+        const labels = autoFilledPrevKeys.map(k=>STAGES.find(s=>s.key===k).label).join(', ');
+        if(confirm(`สถานะก่อนหน้า (${labels}) ถูกติ๊กให้อัตโนมัติไว้ (N/A) ตอนติ๊ก "${stageDef.label}"\nต้องการยกเลิกสถานะเหล่านี้ไปด้วยหรือไม่?`)){
+          autoFilledPrevKeys.forEach(k=>{
+            job.stages[k].done=false; job.stages[k].by=""; job.stages[k].at=null;
+          });
+          undidPrevToo = true;
+        }
+      }
+
       closePopover();
       render();
       await saveSingleJob(job.id);
-      toast(`ยกเลิกสถานะ "${stageDef.label}"`);
+      toast(undidPrevToo ? `ยกเลิกสถานะ "${stageDef.label}" และสถานะก่อนหน้าที่ติ๊กอัตโนมัติแล้ว` : `ยกเลิกสถานะ "${stageDef.label}"`);
     };
   }
   e.stopPropagation();
