@@ -1704,7 +1704,9 @@ function sellerDisplay(j){
 }
 
 function leadDisplayName(l){
-  return l.companyName ? `${l.customerName||'ไม่ระบุชื่อ'} (${l.companyName})` : (l.customerName||'ไม่ระบุชื่อ');
+  // ใช้ "ชื่อที่เรียก" (ตั้งเอง) เป็นหลักถ้ามี เพราะเป็นชื่อที่พนักงานจำได้ ไม่ถูกเขียนทับอัตโนมัติ
+  const name = l.nickname || l.customerName || 'ไม่ระบุชื่อ';
+  return l.companyName ? `${name} (${l.companyName})` : name;
 }
 
 // คงไว้เพื่อความเข้ากันได้ย้อนหลัง — ระบบค้นหา Lead ใช้ renderLeadSuggestions แทนแล้ว
@@ -1744,7 +1746,8 @@ function renderLeadSuggestions(query, showAll=false){
   const matches = showAll && !q
     ? allSorted
     : allSorted.filter(l=>{
-        const hay = `${l.customerName||''} ${l.companyName||''} ${l.lineOrFb||''}`.toLowerCase();
+        // ค้นหาได้ทั้งชื่อลูกค้า, ชื่อที่เรียกเอง, ชื่อไลน์/FB, ชื่อบริษัท, เบอร์โทร, และเลขรหัส Lead
+        const hay = `${l.customerName||''} ${l.nickname||''} ${l.companyName||''} ${l.lineOrFb||''} ${(l.phones||[]).filter(Boolean).join(' ')} ${l.no||''}`.toLowerCase();
         return hay.includes(q);
       });
   if(!matches.length){
@@ -1753,12 +1756,16 @@ function renderLeadSuggestions(query, showAll=false){
     return;
   }
   box.innerHTML = (showAll && !q ? `<div class="lead-suggest-item" style="color:var(--ink-soft);font-size:11.5px;cursor:default;background:#F7F2E6;">รายการ Lead ทั้งหมด (${matches.length} รายการ) — เรียงตามตัวอักษร</div>` : "") +
-    matches.slice(0,30).map(l=>`
+    matches.slice(0,30).map(l=>{
+      // แสดง "ชื่อที่เรียก" เป็นชื่อหลักถ้ามี (เพราะเป็นชื่อที่พนักงานตั้งเองให้จำง่าย) ส่วนชื่อลูกค้า/ชื่อไลน์เดิมโชว์เป็นข้อมูลย่อย
+      const primaryName = l.nickname || l.customerName || 'ไม่ระบุชื่อ';
+      const altNameBit = l.nickname && l.customerName && l.nickname !== l.customerName ? `ชื่อเดิม: ${escapeHtml(l.customerName)} · ` : '';
+      return `
     <div class="lead-suggest-item" data-pick="${l.id}">
-      <div class="lname">${escapeHtml(l.customerName||'ไม่ระบุชื่อ')}</div>
-      <div class="lmeta">${escapeHtml(l.companyName||'-')} · ${escapeHtml(l.channel||'-')}${l.lineOrFb ? ' · '+escapeHtml(l.lineOrFb) : ''}${l.province ? ' · '+escapeHtml(l.province) : ''}</div>
+      <div class="lname">${escapeHtml(primaryName)}</div>
+      <div class="lmeta">${altNameBit}${escapeHtml(l.companyName||'-')} · ${escapeHtml(l.channel||'-')}${l.lineOrFb ? ' · '+escapeHtml(l.lineOrFb) : ''}${l.province ? ' · '+escapeHtml(l.province) : ''}</div>
     </div>
-  `).join("");
+  `;}).join("");
   box.classList.add('open');
   box.querySelectorAll('[data-pick]').forEach(item=>{
     item.onmousedown = (e)=>{ e.preventDefault(); setLeadField(item.dataset.pick); };
@@ -1773,6 +1780,7 @@ function openLeadModal(id){
     const l = leads.find(x=>x.id===id);
     $("l_customerName").value = l.customerName||"";
     $("l_companyName").value = l.companyName||"";
+    $("l_nickname").value = l.nickname||"";
     $("l_lineOrFb").value = l.lineOrFb||"";
     $("l_channel").value = l.channel || LEAD_CHANNELS[0];
     if($("l_contactChannel")) $("l_contactChannel").value = l.contactChannel || "";
@@ -1792,7 +1800,7 @@ function openLeadModal(id){
     $("l_billMode").value = l.billMode || "company";
     $("l_billAddress").value = l.billAddress||"";
   }else{
-    ["l_customerName","l_companyName","l_lineOrFb","l_address","l_taxId","l_phone1","l_phone2","l_phone3","l_phone4","l_shipAddress","l_billAddress"].forEach(id=>{ $(id).value=""; });
+    ["l_customerName","l_companyName","l_nickname","l_lineOrFb","l_address","l_taxId","l_phone1","l_phone2","l_phone3","l_phone4","l_shipAddress","l_billAddress"].forEach(id=>{ $(id).value=""; });
     $("l_channel").value = LEAD_CHANNELS[0];
     if($("l_contactChannel")) $("l_contactChannel").value = "";
     $("l_team").value = "ทีม Admin ไลน์ official";
@@ -1817,6 +1825,7 @@ async function saveLeadFromModal(){
   const common = {
     customerName,
     companyName: $("l_companyName").value.trim(),
+    nickname: $("l_nickname").value.trim(),
     lineOrFb: $("l_lineOrFb").value.trim(),
     channel: $("l_channel").value,
     contactChannel: $("l_contactChannel") ? $("l_contactChannel").value : "",
@@ -2058,6 +2067,7 @@ function renderLeadsView(){
       <tr style="${l.pendingDelete?'background:#FEF0D0;':''}">
         <td>${l.no}</td>
         <td>${escapeHtml(l.customerName)}</td>
+        <td>${l.nickname ? `<span style="font-weight:600;color:var(--olive-dark);">${escapeHtml(l.nickname)}</span>` : '-'}</td>
         <td>${l.clientType ? `<span class="badge-type" style="background:#EEE6F5;color:#5B2C8A;">${escapeHtml(l.clientType)}</span>` : '-'}</td>
         <td>${escapeHtml(l.companyName||'-')}</td>
         <td>${escapeHtml(l.province||'-')}</td>
@@ -2066,7 +2076,6 @@ function renderLeadsView(){
         <td>${escapeHtml(l.lineOrFb||'-')}${l.lineUserId ? ` <span class="badge-type" title="ผูกกับ LINE userId แล้ว หาเจอแม้เปลี่ยนชื่อ/รูป" style="background:#D3F2DD;color:#1E7A44;font-size:10.5px;">🔗 LINE</span>` : ''}</td>
         <td>${(l.phones||[]).filter(Boolean).join(", ")||'-'}</td>
         <td class="date-cell">${l.contactDate ? formatDate(l.contactDate)+(l.contactTime?' '+l.contactTime:'') : formatDate(new Date(l.createdAt).toISOString().slice(0,10))}</td>
-        <td>${escapeHtml(l.province||'-')}</td>
         <td>${won ? '<span class="email-pill sent">✓ สำเร็จ (มีออเดอร์)</span>' : '<span class="email-pill unsent" style="animation:none;">ยังไม่มีออเดอร์</span>'}</td>
         <td>
           ${l.pendingDelete ? `
@@ -2221,9 +2230,9 @@ function renderLeadsView(){
       <div class="table-wrap" style="max-height:60vh;">
         <table class="ov-table">
           <thead><tr>
-            <th>#</th><th>ชื่อลูกค้า</th><th>ประเภท</th><th>บริษัท</th><th>จังหวัด</th><th>ฝ่ายรับผิดชอบ</th><th>ช่องทาง</th><th>ไลน์/FB</th><th>เบอร์โทร</th><th>วันที่/เวลาทักมา</th><th>สถานะ</th><th>จัดการ</th>
+            <th>#</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>ประเภท</th><th>บริษัท</th><th>จังหวัด</th><th>ฝ่ายรับผิดชอบ</th><th>ช่องทาง</th><th>ไลน์/FB</th><th>เบอร์โทร</th><th>วันที่/เวลาทักมา</th><th>สถานะ</th><th>จัดการ</th>
           </tr></thead>
-          <tbody>${leadRows || '<tr><td colspan="12" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มี Lead — กด "เพิ่ม Lead ใหม่" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
+          <tbody>${leadRows || '<tr><td colspan="13" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มี Lead — กด "เพิ่ม Lead ใหม่" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
         </table>
       </div>
     </div>
@@ -2488,7 +2497,7 @@ function getFiltered(){
     if(q){
       // ข้อ 6: ค้นหาตามชื่อลูกค้า/บริษัทใน Lead ที่อ้างอิง, ชื่องาน, เลขใบเสนอราคา ฯลฯ
       const linkedLead = j.leadId ? leads.find(l=>l.id===j.leadId) : null;
-      const leadName = linkedLead ? [linkedLead.customerName, linkedLead.companyName].join(" ") : "";
+      const leadName = linkedLead ? [linkedLead.customerName, linkedLead.nickname, linkedLead.companyName].join(" ") : "";
       const hay = [j.job, j.quote, j.detail, formatDate(j.date), j.date, j.status, j.customerType, leadName].join(" ").toLowerCase();
       if(!hay.includes(q)) return false;
     }
