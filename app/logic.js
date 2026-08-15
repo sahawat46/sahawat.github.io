@@ -3081,7 +3081,7 @@ function renderSummaryView(){
       return true;
     };
     countable = countable.filter(j=>{ const ym = jobYM(j); return ym && matchYM(ym.y, ym.m); });
-    histForAgg = _roleHist.filter(h=>matchYM(h.year, h.month));
+    histForAgg = histForAgg.filter(h=>matchYM(h.year, h.month));
   }
 
   const groupKey = summaryDim==='customerType' ? (j=> visibleCT.includes(j.customerType) ? j.customerType : null) : periodKeyOf;
