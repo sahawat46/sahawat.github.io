@@ -195,6 +195,8 @@
   table.rep-table tbody tr:nth-child(even){background:#F7F2E6;}
   table.rep-table tfoot td{font-weight:700;background:#EFEADA;}
   table.rep-table tfoot td:not(:first-child){text-align:right;}
+  table.rep-table tbody tr.breakdown-row{cursor:pointer;}
+  table.rep-table tbody tr.breakdown-row:hover{background:#E4EAC9;}
   .chart-wrap{overflow-x:auto;}
   /* ===== Email confirm popup ===== */
   .email-modal{
