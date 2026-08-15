@@ -2063,7 +2063,7 @@ function renderLeadsView(){
         <td>${escapeHtml(l.province||'-')}</td>
         <td><span class="badge-type" style="${teamColor}">${escapeHtml(l.team||'-')}</span></td>
         <td><span class="badge-type" style="background:#E4EAC9;color:var(--olive-dark);">${escapeHtml(l.channel||'-')}</span></td>
-        <td>${escapeHtml(l.lineOrFb||'-')}</td>
+        <td>${escapeHtml(l.lineOrFb||'-')}${l.lineUserId ? ` <span class="badge-type" title="ผูกกับ LINE userId แล้ว หาเจอแม้เปลี่ยนชื่อ/รูป" style="background:#D3F2DD;color:#1E7A44;font-size:10.5px;">🔗 LINE</span>` : ''}</td>
         <td>${(l.phones||[]).filter(Boolean).join(", ")||'-'}</td>
         <td class="date-cell">${l.contactDate ? formatDate(l.contactDate)+(l.contactTime?' '+l.contactTime:'') : formatDate(new Date(l.createdAt).toISOString().slice(0,10))}</td>
         <td>${escapeHtml(l.province||'-')}</td>
@@ -2785,9 +2785,13 @@ function openManualSalesModal(){
   $('expModalOverlay').innerHTML = `
     <div style="background:var(--white);border-radius:14px;padding:24px 28px;max-width:500px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
       <h2 style="margin-bottom:16px;">➕ เพิ่มยอดขาย Manual</h2>
-      <div style="display:flex;gap:10px;margin-bottom:16px;">
+      <div style="display:flex;gap:10px;margin-bottom:10px;">
         <select id="msaleYear" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;" onchange="reloadManualSalesModal()">${yearOpts}</select>
         <select id="msaleMon" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;" onchange="reloadManualSalesModal()">${monOpts}</select>
+      </div>
+      <div style="margin-bottom:14px;">
+        <button type="button" class="btn ghost" style="font-size:12px;padding:5px 10px;color:#C0392B;border-color:#C0392B;" onclick="window.clearAutoSalesForSelectedMonth()">🧹 ล้างยอดขายอัตโนมัติของเดือนนี้ทั้งหมด</button>
+        <div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">ปิด "นับเป็นยอดขาย" ของทุกงานในเดือน/ปีที่เลือกด้านบนทีเดียว เพื่อไม่ให้ยอดซ้ำกับที่จะลง Manual ด้านล่าง</div>
       </div>
       <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">ใส่ยอดขาย (ก่อนแวท) แยกตามประเภทลูกค้า ช่องที่ไม่มีใส่ 0</div>
       <div style="background:var(--surface-1);border-radius:8px;padding:10px;">${catFields}</div>
@@ -2836,6 +2840,28 @@ async function saveManualSales(){
   const TH_MONTHS_ABBR = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   toast(`✓ บันทึกยอดขาย ${added} ประเภท เดือน ${TH_MONTHS_ABBR[m-1]} ปี ${y+543}`);
   if(currentView==='summary') renderList();
+}
+
+// ยอดขาย ข้อ 2: ปุ่ม "ล้างยอดขายอัตโนมัติทั้งเดือน" — ปิดการนับยอดขาย (countInSales=false)
+// ของทุกงานในเดือน/ปีที่เลือกทีเดียว เพื่อไม่ให้ยอดชนกับที่จะลง Manual ทับ
+async function clearAutoSalesForMonth(year, month){
+  const mm = String(month).padStart(2,'0');
+  const targets = jobs.filter(j=>j.date && j.date.startsWith(year+'-'+mm) && j.countInSales!==false);
+  const TH_MONTHS_ABBR = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const label = `${TH_MONTHS_ABBR[month-1]} ${year+543}`;
+  if(!targets.length){ toast(`ไม่มีงานที่นับยอดขายอัตโนมัติอยู่ในเดือน ${label} ค่ะ`); return; }
+  if(!confirm(`ยืนยันปิดการนับยอดขายอัตโนมัติของงาน ${targets.length} รายการ ในเดือน ${label} ใช่หรือไม่?\n(งานเหล่านี้จะไม่ถูกรวมในยอดขายอีก จนกว่าจะติ๊ก "นับเป็นยอดขาย" กลับคืนทีละงาน)`)) return;
+  for(const j of targets){
+    j.countInSales = false;
+    await saveSingleJob(j.id);
+  }
+  toast(`✓ ปิดการนับยอดขายอัตโนมัติแล้ว ${targets.length} รายการ ในเดือน ${label}`);
+  if(currentView==='summary') renderList();
+}
+async function clearAutoSalesForSelectedMonth(){
+  const y = Number($('msaleYear').value);
+  const m = Number($('msaleMon').value);
+  await clearAutoSalesForMonth(y, m);
 }
 
 // ข้อ 7: ดูรายละเอียดย่อยของ "ยอดขายรวม" — คลิกแล้วเห็นว่ายอดรวมประกอบด้วยงานอะไรบ้าง
@@ -3761,14 +3787,14 @@ function handleStageClick(e, stepEl){
       st.by = btn.dataset.person;
       st.at = Date.now();
       // ข้อ 4: ถ้าติ๊กขั้นตอนที่อยู่หลังขั้นตอนก่อนหน้าที่ยังไม่เสร็จ ให้ระบบติ๊กขั้นตอนก่อนหน้าให้อัตโนมัติ
-      // (ระบุชื่อผู้ทำเป็น "อัตโนมัติ" เพื่อให้รู้ว่าไม่ใช่คนติ๊กเอง)
+      // (ระบุชื่อผู้ทำเป็น "N/A" เพื่อให้รู้ว่าไม่ใช่คนติ๊กเอง)
       const curStageIdx = STAGES.findIndex(s=>s.key===stageKey);
       for(let i=0;i<curStageIdx;i++){
         const prevKey = STAGES[i].key;
         const prevSt = job.stages[prevKey];
         if(prevSt && !prevSt.done){
           prevSt.done = true;
-          prevSt.by = 'อัตโนมัติ';
+          prevSt.by = 'N/A';
           prevSt.at = Date.now();
         }
       }
@@ -4655,6 +4681,7 @@ setInterval(checkEmailReminders, 5*60000);
   window.closeDeliveryReminderPopup = closeDeliveryReminderPopup;
   window.approveLeadDelete = approveLeadDelete;
   window.rejectLeadDelete = rejectLeadDelete;
+  window.clearAutoSalesForSelectedMonth = clearAutoSalesForSelectedMonth;
 
   window.supabase = {
     createClient: () => window._sb
