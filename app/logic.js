@@ -2842,6 +2842,12 @@ async function saveManualSales(){
 let _sellerBreakdownJobs = [];
 let _periodBreakdownJobs = [];
 let _periodBreakdownHist = 0;
+let _groupBreakdownMap = {}; // ข้อ (เพิ่มเติม): ดูรายละเอียดย่อยของแต่ละแถวในตารางสรุป (ต่อประเภทลูกค้า/ต่อช่วงเวลา)
+function showGroupBreakdown(key){
+  const entry = _groupBreakdownMap[key];
+  if(!entry) return;
+  showSalesBreakdown(`รายละเอียดยอดขาย — ${entry.label}`, entry.jobs, entry.hist);
+}
 function showSalesBreakdown(title, jobsList, histAmount){
   const box = $('breakdownBody');
   const titleEl = $('breakdownTitle');
@@ -2936,18 +2942,22 @@ function renderSellerSummary(){
       <text x="${x+barW/2}" y="${y-6}" font-size="10" text-anchor="middle" fill="#2B2520" font-family="Kanit" font-weight="700">${amt>=1000?Math.round(amt/1000)+'k':amt}</text>`;
   }).join("");
 
+  // ข้อ (เพิ่มเติม): เก็บรายละเอียดของแต่ละเซลล์ไว้ให้คลิกดูย่อยได้ทีละแถว
+  _groupBreakdownMap = {};
   const tableRows = sellers.map(s=>{
     const g = sellerMap[s];
     const doneRate = g.jobs ? Math.round(g.done/g.jobs*1000)/10 : 0;
     const sc = personColor(g.baseColor || s);
-    return `<tr>
+    const jobsForSeller = countable.filter(j=>(sellerDisplay(j)||'ไม่ระบุ')===s);
+    _groupBreakdownMap[s] = { jobs: jobsForSeller, hist: 0, label: s };
+    return `<tr class="breakdown-row" onclick="window.showGroupBreakdown('${escapeAttr(s)}')" title="คลิกดูรายละเอียดว่ายอดขายนี้ประกอบด้วยงานอะไรบ้าง">
       <td><span class="pchip" style="background:${sc.bg};color:${sc.text}">${escapeHtml(s)}</span></td>
       <td>${g.jobs || '<span style="color:var(--ink-soft)">N/A</span>'}</td>
       <td>${g.sample || '<span style="color:var(--ink-soft)">N/A</span>'}</td>
       <td>${g.real || '<span style="color:var(--ink-soft)">N/A</span>'}</td>
       <td>${g.jobs ? g.done+' ('+doneRate+'%)' : '<span style="color:var(--ink-soft)">N/A</span>'}</td>
       <td>${g.qty ? g.qty.toLocaleString()+' ตัว' : '<span style="color:var(--ink-soft)">N/A</span>'}</td>
-      <td>${g.amount.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+      <td>${g.amount.toLocaleString(undefined,{maximumFractionDigits:0})} 🔍</td>
       <td>${g.amount&&g.jobs ? ''+ Math.round(g.amount/g.jobs).toLocaleString() : '<span style="color:var(--ink-soft)">N/A</span>'}</td>
       <td>${g.jobs ? g.leadLinked : '<span style="color:var(--ink-soft)">N/A</span>'}</td>
     </tr>`;
@@ -3183,15 +3193,21 @@ function renderSummaryView(){
     return false;
   };
 
+  // ข้อ (เพิ่มเติม): เก็บรายละเอียดของแต่ละแถว (แต่ละประเภทลูกค้า/ช่วงเวลา) ไว้ให้คลิกดูย่อยได้ทีละแถว
+  _groupBreakdownMap = {};
   const rows = keys.map((k,i)=>{
     const g = groups[k];
     const hist = isHistPeriod(k);
+    const jobsForKey = countable.filter(j=>groupKey(j)===k);
+    const jobsAmtForKey = jobsForKey.reduce((s,j)=>s+(Number(j.salesAmount)||0),0);
+    const histAmtForKey = Math.max(0, (g?g.amount:0) - jobsAmtForKey);
+    _groupBreakdownMap[k] = { jobs: jobsForKey, hist: histAmtForKey, label: labelOf(k) };
     return `
-    <tr>
+    <tr class="breakdown-row" onclick="window.showGroupBreakdown('${escapeAttr(k)}')" title="คลิกดูรายละเอียดว่ายอดขายนี้ประกอบด้วยงานอะไรบ้าง">
       <td>${escapeHtml(labelOf(k))}</td>
       <td>${hist ? '<span style="color:var(--ink-soft)">N/A</span>' : (g?g.count:0).toLocaleString()}</td>
       <td>${hist ? '<span style="color:var(--ink-soft)">N/A</span>' : (g?g.qty:0).toLocaleString()}</td>
-      <td>${(g?g.amount:0).toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+      <td>${(g?g.amount:0).toLocaleString(undefined,{maximumFractionDigits:2})} 🔍</td>
     </tr>`;
   }).join("");
 
@@ -4634,6 +4650,7 @@ setInterval(checkEmailReminders, 5*60000);
   window.openManualSalesModal = openManualSalesModal;
   window.showSellerBreakdown = showSellerBreakdown;
   window.showPeriodBreakdown = showPeriodBreakdown;
+  window.showGroupBreakdown = showGroupBreakdown;
   window.closeBreakdownModal = closeBreakdownModal;
   window.closeDeliveryReminderPopup = closeDeliveryReminderPopup;
   window.approveLeadDelete = approveLeadDelete;
