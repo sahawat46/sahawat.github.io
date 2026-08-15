@@ -1914,6 +1914,17 @@ async function rejectLeadDelete(id){
   toast("ปฏิเสธคำขอลบแล้ว");
 }
 
+// ข้อ: ล้างป้ายเตือน "อาจซ้ำกับ Lead เดิม" (ที่ระบบติดให้ตอนสร้าง Lead อัตโนมัติจากไลน์ follow event
+// แล้วชื่อไปคล้ายกับ Lead เก่าที่ยังไม่ผูก LINE userId) — ใช้เมื่อพนักงานเช็คแล้วว่าไม่ซ้ำกันจริง
+async function clearPossibleDuplicateFlag(id){
+  const l = leads.find(x=>x.id===id);
+  if(!l) return;
+  l.possibleDuplicate = false;
+  await saveSingleLead(id);
+  if(currentView==='leads') renderList();
+  toast("✓ ล้างป้ายเตือนซ้ำแล้ว");
+}
+
 // ข้อ: Lead ที่มีงาน/ออเดอร์อ้างอิงมา ถือว่า "สำเร็จ"
 function leadHasOrder(leadId){
   return jobs.some(j=>j.leadId===leadId);
@@ -2066,7 +2077,11 @@ function renderLeadsView(){
     return `
       <tr style="${l.pendingDelete?'background:#FEF0D0;':''}">
         <td>${l.no}</td>
-        <td>${escapeHtml(l.customerName)}</td>
+        <td>${escapeHtml(l.customerName)}${l.possibleDuplicate ? `
+          <div style="margin-top:3px;">
+            <span class="badge-type" style="background:#FDECEA;color:#B03A2E;font-size:10px;" title="ชื่อไลน์คล้ายกับ Lead: ${escapeAttr(l.possibleDuplicateOfName||'')} — เผื่อเป็นลูกค้าเก่าที่เคยบล็อกแล้วแอดกลับ โปรดตรวจสอบว่าซ้ำกันหรือไม่">⚠ อาจซ้ำกับ "${escapeHtml(l.possibleDuplicateOfName||'')}"</span>
+            <button onclick="window.clearPossibleDuplicateFlag('${l.id}')" class="row-del-btn" style="font-size:9.5px;padding:1px 5px;margin-left:2px;" title="ตรวจสอบแล้วไม่ซ้ำ — ล้างป้ายเตือนนี้">✓ ตรวจสอบแล้ว</button>
+          </div>` : ''}</td>
         <td>${l.nickname ? `<span style="font-weight:600;color:var(--olive-dark);">${escapeHtml(l.nickname)}</span>` : '-'}</td>
         <td>${l.clientType ? `<span class="badge-type" style="background:#EEE6F5;color:#5B2C8A;">${escapeHtml(l.clientType)}</span>` : '-'}</td>
         <td>${escapeHtml(l.companyName||'-')}</td>
@@ -4691,6 +4706,7 @@ setInterval(checkEmailReminders, 5*60000);
   window.approveLeadDelete = approveLeadDelete;
   window.rejectLeadDelete = rejectLeadDelete;
   window.clearAutoSalesForSelectedMonth = clearAutoSalesForSelectedMonth;
+  window.clearPossibleDuplicateFlag = clearPossibleDuplicateFlag;
 
   window.supabase = {
     createClient: () => window._sb
