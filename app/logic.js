@@ -37,6 +37,13 @@ const STAGES = [
 // ข้อ 4: สถานะ/ขั้นตอนใดที่ไม่ได้ระบุเวลาค้างเกินกำหนด ให้ใช้ค่า default 24 ชม.
 STAGES.forEach(s=>{ if(!s.overdueHrs) s.overdueHrs = 24; });
 
+// ยังรอส่งอีเมลออกออเดอร์อยู่จริงไหม — เช็คสองต่อกันพลาด: ถ้าติ๊กขั้นตอน "สรุปส่งออกออเดอร์" เสร็จแล้ว
+// ให้ถือว่าไม่ต้องเตือนอีก แม้ field emailSent จะยังไม่ถูกซิงค์ (กันป้าย "ยังไม่ได้ส่งอีเมล" ค้างผิดพลาด)
+function orderEmailPending(j){
+  if(j && j.stages && j.stages.summary && j.stages.summary.done) return false;
+  return j && j.emailSent === false;
+}
+
 const CUSTOMER_TYPES = [
   "เวปใหม่","เวปใหม่ (แอดมิน)","เวปเก่า","เวปเก่า (แอดมิน)",
   "สหวัฒน์ใหม่","สหวัฒน์เก่า","ปุ๋ย","งานประมูล","งานงบ รร.","เซลล์นอก","อื่นๆ"
@@ -315,6 +322,7 @@ async function loadJobs(){
   const od=jobs.filter(j=>getOverdueInfo(j)).length;
   if(od>0) setTimeout(()=>toast(`⚠ มีงานค้างเกินกำหนด ${od} รายการ`),500);
   setTimeout(checkEmailReminders,900);
+  setTimeout(checkDeliveryReminders,900); // ข้อ 2: เตือนวันส่งงานตอน login (auto-login)
 }
 
 async function saveJobs(){
@@ -1308,6 +1316,7 @@ async function tryLogin(){
   renderTopbarUser();
   toast(`👋 ยินดีต้อนรับ ${u.name}`);
   render();
+  setTimeout(checkDeliveryReminders, 500); // ข้อ 2: เตือนวันส่งงานตอน login
 }
 
 function doLogout(){
@@ -1841,18 +1850,59 @@ async function saveLeadFromModal(){
   toast("บันทึก Lead แล้ว");
 }
 
+// ข้อ 8: ถ้าไม่ใช่ Manager ต้องส่งคำขอลบให้ Manager อนุมัติก่อน (เหมือนการลบงาน)
 async function deleteLead(id){
+  const l = leads.find(x=>x.id===id);
+  if(!l) return;
+
+  if(currentUser?.role !== 'manager'){
+    if(!confirm(`ขอส่งคำขออนุมัติลบ Lead "${l.customerName||'ไม่มีชื่อ'}" ให้ Manager ใช่หรือไม่?`)) return;
+    l.pendingDelete = true;
+    l.pendingDeleteBy = currentUser?.name || '';
+    l.pendingDeleteAt = Date.now();
+    await saveSingleLead(id);
+    if(currentView==='leads') renderList();
+    toast("📨 ส่งคำขออนุมัติลบให้ Manager แล้วค่ะ");
+    return;
+  }
+
+  // Manager ลบได้เลย
   if(!confirm("ลบ Lead นี้ใช่หรือไม่?")) return;
   try {
     await deleteLeadFromDB(id);
     if(_useSupabase){
-      leads = leads.filter(l=>l.id!==id);
+      leads = leads.filter(x=>x.id!==id);
     }
     if(currentView==='leads') renderList();
     toast("ลบ Lead แล้ว");
   } catch(e) {
     toast("ลบ Lead ไม่สำเร็จ: " + e.message);
   }
+}
+
+// Manager อนุมัติหรือปฏิเสธคำขอลบ Lead
+async function approveLeadDelete(id){
+  const l = leads.find(x=>x.id===id);
+  if(!l) return;
+  if(!confirm(`อนุมัติลบ Lead "${l.customerName||'ไม่มีชื่อ'}" (ขอโดย ${l.pendingDeleteBy||'?'}) ใช่หรือไม่?`)) return;
+  try {
+    await deleteLeadFromDB(id);
+    if(_useSupabase){
+      leads = leads.filter(x=>x.id!==id);
+    }
+    if(currentView==='leads') renderList();
+    toast("อนุมัติและลบ Lead แล้ว");
+  } catch(e) {
+    toast("ลบ Lead ไม่สำเร็จ: " + e.message);
+  }
+}
+async function rejectLeadDelete(id){
+  const l = leads.find(x=>x.id===id);
+  if(!l) return;
+  l.pendingDelete = false; l.pendingDeleteBy = null; l.pendingDeleteAt = null;
+  await saveSingleLead(id);
+  if(currentView==='leads') renderList();
+  toast("ปฏิเสธคำขอลบแล้ว");
 }
 
 // ข้อ: Lead ที่มีงาน/ออเดอร์อ้างอิงมา ถือว่า "สำเร็จ"
@@ -2005,7 +2055,7 @@ function renderLeadsView(){
     const won = leadHasOrder(l.id);
     const teamColor = l.team==='ทีม Admin ไลน์ official' ? 'background:#DCEEF5;color:#1B4F7A;' : 'background:#E4EAC9;color:var(--olive-dark);';
     return `
-      <tr>
+      <tr style="${l.pendingDelete?'background:#FEF0D0;':''}">
         <td>${l.no}</td>
         <td>${escapeHtml(l.customerName)}</td>
         <td>${l.clientType ? `<span class="badge-type" style="background:#EEE6F5;color:#5B2C8A;">${escapeHtml(l.clientType)}</span>` : '-'}</td>
@@ -2019,8 +2069,15 @@ function renderLeadsView(){
         <td>${escapeHtml(l.province||'-')}</td>
         <td>${won ? '<span class="email-pill sent">✓ สำเร็จ (มีออเดอร์)</span>' : '<span class="email-pill unsent" style="animation:none;">ยังไม่มีออเดอร์</span>'}</td>
         <td>
-          <button class="row-del-btn" data-leadedit="${l.id}" title="แก้ไข">✎</button>
-          <button class="row-del-btn" data-leaddel="${l.id}" title="ลบ">🗑</button>
+          ${l.pendingDelete ? `
+            <div style="font-size:11px;color:#7A5605;font-weight:700;margin-bottom:4px;white-space:nowrap;">🗑 ${escapeHtml(l.pendingDeleteBy||'?')} ขอลบ</div>
+            ${currentUser?.role==='manager'
+              ? `<button onclick="window.approveLeadDelete('${l.id}')" class="btn" style="padding:3px 8px;font-size:11px;background:#C0392B;color:#fff;">✓ อนุมัติ</button><button onclick="window.rejectLeadDelete('${l.id}')" class="btn ghost" style="padding:3px 8px;font-size:11px;">✕ ปฏิเสธ</button>`
+              : `<span style="color:#7A5605;font-size:11px;">(รอ Manager)</span>`}
+          ` : `
+            <button class="row-del-btn" data-leadedit="${l.id}" title="แก้ไข">✎</button>
+            <button class="row-del-btn" data-leaddel="${l.id}" title="${currentUser?.role==='manager'?'ลบ':'ขออนุมัติลบ'}">🗑</button>
+          `}
         </td>
       </tr>`;
   }).join("");
@@ -2253,9 +2310,12 @@ function maybeConvertSampleToReal(job){
   job.type = "งานจริง";
   job.awaitingRealOrder = true; // ใช้แสดงป้าย "รอออกออเดอร์งานจริง"
   job.stages = freshStages();
-  // งานจริงที่เพิ่งเกิดจากตัวอย่าง ถือเป็นออเดอร์ใหม่ ต้องเตือนส่งอีเมลออกออเดอร์อีกครั้ง
+  // งานจริงที่เพิ่งเกิดจากตัวอย่าง ถือเป็นออเดอร์ใหม่ ต้องเตือนส่งอีเมลออกออเดอร์อีกครั้ง และเตือนวันส่งงานใหม่อีกครั้ง
   job.emailSent = false;
   job.emailReminder = null;
+  job.shipped = false;
+  job.shippedAt = null;
+  job.shippedBy = null;
   setTimeout(()=>{
     toast(`🔁 "${job.job||'งาน'}" ตัวอย่างเสร็จสมบูรณ์แล้ว ย้ายเข้าสู่ flow "รอออกออเดอร์งานจริง"`);
     queueEmailReminder(job.id);
@@ -2321,7 +2381,7 @@ function renderSummary(){
   const overdue = jobs.filter(j=>getOverdueInfo(j)).length;
   const pending = jobs.filter(j=>stageProgress(j)===0 && !getOverdueInfo(j)).length;
   const inProgress = total - done - pending - overdue;
-  const emailUnsentJobs = jobs.filter(j=>j.emailSent===false);
+  const emailUnsentJobs = jobs.filter(orderEmailPending);
   const emailUnsentCount = emailUnsentJobs.length;
   const emailBySeller = {};
   emailUnsentJobs.forEach(j=>{ emailBySeller[j.seller] = (emailBySeller[j.seller]||0) + 1; });
@@ -2353,17 +2413,27 @@ function renderSummary(){
   });
 }
 
-// ข้อ 8-9: กล่องเตือนใกล้ถึงกำหนดส่ง / พรุ่งนี้ส่ง (อิงวันที่ส่งงาน)
-function renderAlerts(){
-  const el = $("alertRow");
-  if(currentView==='summary' || currentView==='leads'){ el.innerHTML=''; return; }
+// ข้อ 1: หางานที่ใกล้ถึงวันส่งจริง (อิงปฏิทินตามวันที่ระบุไว้ล้วนๆ ไม่เกี่ยวกับสถานะขั้นตอนงานว่า "เสร็จสมบูรณ์" หรือยัง
+// เพราะ "เสร็จสมบูรณ์" หมายถึงขั้นตอนภายในเสร็จ ไม่ได้แปลว่าส่งของจริงแล้ว — จะหยุดเตือนก็ต่อเมื่อติ๊ก "ส่งแล้ว" เท่านั้น)
+// เฉพาะงานของตัวเอง (เหมือนระบบเตือนอีเมลออกออเดอร์)
+function getUpcomingDeliveries(){
   const soon = [], tomorrow = [];
+  if(!currentUser) return { soon, tomorrow };
   jobs.forEach(j=>{
-    if(isJobDone(j) || !j.deliveryDate) return;
+    if(j.shipped || j.cancelled || !j.deliveryDate) return;
+    if(j.seller !== currentUser.name) return; // เฉพาะงานของตัวเอง
     const d = daysUntil(j.deliveryDate);
     if(d===1) tomorrow.push(j);
     else if(d!==null && d>=2 && d<=4) soon.push(j);
   });
+  return { soon, tomorrow };
+}
+
+// ข้อ 8-9: กล่องเตือนใกล้ถึงกำหนดส่ง / พรุ่งนี้ส่ง (อิงวันที่ส่งงาน)
+function renderAlerts(){
+  const el = $("alertRow");
+  if(currentView==='summary' || currentView==='leads'){ el.innerHTML=''; return; }
+  const { soon, tomorrow } = getUpcomingDeliveries();
   let html = '';
   if(soon.length){
     html += `<div class="alert-box soon"><div class="at">⏰ ใกล้ถึงกำหนดส่ง (ภายใน 4 วัน) — ${soon.length} งาน</div>
@@ -2404,7 +2474,7 @@ function getFiltered(){
     if(dateTo && jDate && jDate > dateTo) return false;
     if(fstage){
       if(fstage==='emailUnsent'){
-        if(j.emailSent !== false) return false;
+        if(!orderEmailPending(j)) return false;
       }else{
         const tag = jobStageFilterTag(j);
         if(fstage==='inprogress'){
@@ -2543,7 +2613,7 @@ function renderTableHtml(list){
       <tr class="${overdue ? 'row-overdue' : ''} ${done ? 'row-done' : ''}">
         <td class="sticky-col c1">${getJobDisplayNo(j)}</td>
         <td class="sticky-col c2"><span class="pchip" style="background:${sc.bg};color:${sc.text}">${sellerDisplay(j)}</span></td>
-        <td class="sticky-col c3 cell-job">${escapeHtml(j.job||'-')}${done?'<span class="done-pill">✓ เสร็จ</span>':''}${j.awaitingRealOrder?'<span class="awaiting-pill">🔁 รอออกออเดอร์งานจริง</span>':''}${j.emailSent===false ? '<span class="email-pill unsent">⚠ ยังไม่ส่งเมล</span>' : ''}</td>
+        <td class="sticky-col c3 cell-job">${escapeHtml(j.job||'-')}${done?'<span class="done-pill">✓ เสร็จ</span>':''}${j.awaitingRealOrder?'<span class="awaiting-pill">🔁 รอออกออเดอร์งานจริง</span>':''}${orderEmailPending(j) ? '<span class="email-pill unsent">⚠ ยังไม่ส่งเมล</span>' : ''}</td>
         <td class="date-cell">${formatDate(j.date)}</td>
         <td>${escapeHtml(j.quote||'-')}</td>
         <td class="cell-detail">${escapeHtml(j.detail||'')}</td>
@@ -2615,11 +2685,14 @@ function renderTicket(j){
       <div class="ticket-head">
         <div class="ticket-titles">
           <div class="ticket-no">#${getJobDisplayNo(j)} · ${j.quote || '-'}</div>
-          <div class="ticket-job">${escapeHtml(j.job || 'ไม่มีชื่องาน')}${done?'<span class="done-pill">✓ เสร็จสมบูรณ์</span>':''}${j.awaitingRealOrder?'<span class="awaiting-pill">🔁 รอออกออเดอร์งานจริง</span>':''}${j.emailSent===false ? '<span class="email-pill unsent">⚠ ยังไม่ได้ส่งอีเมลออกออเดอร์</span>' : ''}</div>
+          <div class="ticket-job">${escapeHtml(j.job || 'ไม่มีชื่องาน')}${done?'<span class="done-pill">✓ เสร็จสมบูรณ์</span>':''}${j.awaitingRealOrder?'<span class="awaiting-pill">🔁 รอออกออเดอร์งานจริง</span>':''}${orderEmailPending(j) ? '<span class="email-pill unsent">⚠ ยังไม่ได้ส่งอีเมลออกออเดอร์</span>' : ''}</div>
           <div class="ticket-meta">
             <span>👤 ${sellerDisplay(j)}</span>
             <span>📅 ${formatDate(j.date)}</span>
             ${j.deliveryDate ? `<span>🚚 ส่ง ${formatDate(j.deliveryDate)}</span>` : ''}
+            ${j.deliveryDate ? (j.shipped
+              ? `<span class="email-pill sent" title="${j.shippedBy?'ส่งแล้วโดย '+escapeAttr(j.shippedBy):'ส่งแล้ว'}">✓ ส่งแล้ว</span>`
+              : `<button class="btn ghost" data-shipped="${j.id}" style="padding:2px 9px;font-size:11px;">🚚 ทำเครื่องหมายว่าส่งแล้ว</button>`) : ''}
             ${j.customerType ? `<span>🏷 ${j.customerType}</span>` : ''}
             ${j.leadId ? (()=>{ const ld=leads.find(x=>x.id===j.leadId); return ld ? `<span>🧲 Lead: ${escapeHtml(leadDisplayName(ld))}</span>` : ''; })() : ''}
             ${j.qty ? `<span>📦 ${j.qty} ตัว${j.productItems&&j.productItems.length ? ' ('+j.productItems.filter(p=>p.type).map(p=>`${p.type} ${p.qty} ตัว`).join(', ')+')'  : ''}</span>` : ''}
@@ -2765,6 +2838,47 @@ async function saveManualSales(){
   if(currentView==='summary') renderList();
 }
 
+// ข้อ 7: ดูรายละเอียดย่อยของ "ยอดขายรวม" — คลิกแล้วเห็นว่ายอดรวมประกอบด้วยงานอะไรบ้าง
+let _sellerBreakdownJobs = [];
+let _periodBreakdownJobs = [];
+let _periodBreakdownHist = 0;
+function showSalesBreakdown(title, jobsList, histAmount){
+  const box = $('breakdownBody');
+  const titleEl = $('breakdownTitle');
+  if(!box || !titleEl) return;
+  titleEl.textContent = title;
+  const sorted = (jobsList||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const rowsHtml = sorted.map(j=>`
+    <tr>
+      <td>${escapeHtml(j.job||'ไม่มีชื่องาน')}</td>
+      <td>${sellerDisplay(j)}</td>
+      <td>${formatDate(j.date)}</td>
+      <td>${escapeHtml(j.customerType||'-')}</td>
+      <td style="text-align:right;">${(Number(j.salesAmount)||0).toLocaleString()}</td>
+    </tr>`).join('');
+  const jobsTotal = sorted.reduce((s,j)=>s+(Number(j.salesAmount)||0),0);
+  const hist = Math.max(0, Math.round(histAmount||0));
+  box.innerHTML = `
+    <div style="max-height:60vh;overflow:auto;">
+      <table class="rep-table">
+        <thead><tr><th>ชื่องาน</th><th>เซลล์</th><th>วันที่</th><th>ประเภทลูกค้า</th><th style="text-align:right;">ยอดขาย</th></tr></thead>
+        <tbody>${rowsHtml || '<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);">ไม่มีรายการงานในช่วงนี้</td></tr>'}</tbody>
+        <tfoot>
+          <tr><td colspan="4">รวมจากรายการงาน (${sorted.length} งาน)</td><td style="text-align:right;font-weight:700;">${jobsTotal.toLocaleString()}</td></tr>
+          ${hist ? `<tr><td colspan="4" style="color:var(--ink-soft);">+ ยอดขายย้อนหลังที่นำเข้าจากรายงานเก่า (ไม่มีรายละเอียดระดับงาน)</td><td style="text-align:right;color:var(--ink-soft);">${hist.toLocaleString()}</td></tr>` : ''}
+          <tr><td colspan="4" style="font-weight:700;">รวมทั้งหมด</td><td style="text-align:right;font-weight:700;">${(jobsTotal+hist).toLocaleString()}</td></tr>
+        </tfoot>
+      </table>
+    </div>`;
+  $('breakdownModal').style.display = 'flex';
+}
+function closeBreakdownModal(){
+  const m = $('breakdownModal');
+  if(m) m.style.display = 'none';
+}
+function showSellerBreakdown(){ showSalesBreakdown('รายละเอียดยอดขายรวม (ตามเซลล์)', _sellerBreakdownJobs, 0); }
+function showPeriodBreakdown(){ showSalesBreakdown('รายละเอียดยอดขายรวม', _periodBreakdownJobs, _periodBreakdownHist); }
+
 function renderSellerSummary(){
   const dimCtrl = `
     <div class="summary-controls">
@@ -2842,12 +2956,13 @@ function renderSellerSummary(){
   const totalAmt = sellers.reduce((s,k)=>s+sellerMap[k].amount,0);
   const totalJobs = sellers.reduce((s,k)=>s+sellerMap[k].jobs,0);
   const totalQty = sellers.reduce((s,k)=>s+sellerMap[k].qty,0);
+  _sellerBreakdownJobs = countable;
 
   return dimCtrl + `
     <div class="summary-row">
       <div class="summary-box"><div class="num">${totalJobs}</div><div class="lbl">งานทั้งหมด</div></div>
       <div class="summary-box"><div class="num" style="color:var(--olive)">${totalQty.toLocaleString()}</div><div class="lbl">ตัวรวม</div></div>
-      <div class="summary-box"><div class="num" style="color:var(--khaki-green)">${totalAmt.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="lbl">ยอดขายรวม</div></div>
+      <div class="summary-box" style="cursor:pointer;" onclick="window.showSellerBreakdown()" title="คลิกดูรายละเอียดว่ายอดขายรวมประกอบด้วยงานอะไรบ้าง"><div class="num" style="color:var(--khaki-green)">${totalAmt.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="lbl">ยอดขายรวม 🔍</div></div>
     </div>
     <div class="summary-panel">
       <h3>👤 กราฟยอดขายตามเซลล์</h3>
@@ -3042,6 +3157,13 @@ function renderSummaryView(){
   const totalCount = keys.reduce((s,k)=>s+(groups[k]?groups[k].count:0),0);
   const maxAmount = Math.max(1, ...keys.map(k=>groups[k]?groups[k].amount:0));
 
+  // ข้อ 7: เก็บรายการงานที่ประกอบเป็นยอดรวมนี้ไว้สำหรับปุ่มดูรายละเอียดย่อย
+  // (ส่วนที่เหลือหลังหักยอดจากงานจริง คือยอดขายย้อนหลังที่นำเข้าจากรายงานเก่า ไม่มีรายละเอียดระดับงาน)
+  const jobsInScope = countable.filter(j=>keys.includes(groupKey(j)));
+  const jobsInScopeAmount = jobsInScope.reduce((s,j)=>s+(Number(j.salesAmount)||0),0);
+  _periodBreakdownJobs = jobsInScope;
+  _periodBreakdownHist = Math.max(0, totalAmount - jobsInScopeAmount);
+
   const barColors = ["#5B6B22","#9CC42C","#C8862B","#3E7A4D","#B7472A","#7A5605","#1B4F7A","#5B2C8A","#0E6E69","#8A1B4A","#6B6B2A"];
 
   const labelOf = (k)=> summaryDim==='customerType' ? k : formatPeriodLabel(k);
@@ -3223,7 +3345,7 @@ function renderSummaryView(){
     <div class="summary-row">
       <div class="summary-box"><div class="num">${totalCount}</div><div class="lbl">จำนวนงาน (นับยอด)</div></div>
       <div class="summary-box"><div class="num" style="color:var(--olive)">${totalQty.toLocaleString()}</div><div class="lbl">จำนวนตัวที่สั่งผลิต</div></div>
-      <div class="summary-box"><div class="num" style="color:var(--khaki-green)">${totalAmount.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="lbl">ยอดขายรวม (ก่อนแวท)</div></div>
+      <div class="summary-box" style="cursor:pointer;" onclick="window.showPeriodBreakdown()" title="คลิกดูรายละเอียดว่ายอดขายรวมประกอบด้วยงานอะไรบ้าง"><div class="num" style="color:var(--khaki-green)">${totalAmount.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="lbl">ยอดขายรวม (ก่อนแวท) 🔍</div></div>
     </div>
     <div class="summary-panel">
       <h3>กราฟยอดขาย — ${summaryDim==='customerType'?'ตามประเภทลูกค้า':((summarySelectedPeriods.length||summarySelectedYearsBE.length)?'เปรียบเทียบที่เลือกไว้':'ตามช่วงเวลา')}</h3>
@@ -3577,6 +3699,7 @@ function bindTicketEvents(){
   document.querySelectorAll('[data-cancel]').forEach(b=>{ b.onclick = ()=>cancelJob(b.dataset.cancel); });
   document.querySelectorAll('[data-uncancel]').forEach(b=>{ b.onclick = ()=>uncancelJob(b.dataset.uncancel); });
   document.querySelectorAll('[data-requeue]').forEach(b=>{ b.onclick = ()=>reQueueEmailReminder(b.dataset.requeue); });
+  document.querySelectorAll('[data-shipped]').forEach(b=>{ b.onclick = ()=>setShipped(b.dataset.shipped); });
   document.querySelectorAll('[data-status]').forEach(inp=>{
     inp.onchange = async ()=>{
       const j = jobs.find(x=>x.id===inp.dataset.status);
@@ -3621,9 +3744,21 @@ function handleStageClick(e, stepEl){
       st.done = true;
       st.by = btn.dataset.person;
       st.at = Date.now();
-      // ข้อ 1: เมื่อสถานะ "สรุปส่งออกออเดอร์" ถูกทำเครื่องหมายเสร็จ
-      // ให้ถือว่าส่งอีเมลออกออเดอร์แล้ว (เพราะเป็นขั้นตอนเดียวกัน)
-      if(stageKey === 'summary' && job.emailSent === false){
+      // ข้อ 4: ถ้าติ๊กขั้นตอนที่อยู่หลังขั้นตอนก่อนหน้าที่ยังไม่เสร็จ ให้ระบบติ๊กขั้นตอนก่อนหน้าให้อัตโนมัติ
+      // (ระบุชื่อผู้ทำเป็น "อัตโนมัติ" เพื่อให้รู้ว่าไม่ใช่คนติ๊กเอง)
+      const curStageIdx = STAGES.findIndex(s=>s.key===stageKey);
+      for(let i=0;i<curStageIdx;i++){
+        const prevKey = STAGES[i].key;
+        const prevSt = job.stages[prevKey];
+        if(prevSt && !prevSt.done){
+          prevSt.done = true;
+          prevSt.by = 'อัตโนมัติ';
+          prevSt.at = Date.now();
+        }
+      }
+      // ข้อ 1/6: เมื่อขั้นตอน "สรุปส่งออกออเดอร์" เสร็จแล้ว (ไม่ว่าจะติ๊กเองหรือถูกติ๊กอัตโนมัติจากข้อ 4)
+      // ให้ถือว่าส่งอีเมลออกออเดอร์แล้วเสมอ กันป้าย "ยังไม่ได้ส่งอีเมล" ค้างผิดพลาด
+      if(job.stages.summary && job.stages.summary.done && job.emailSent !== true){
         job.emailSent = true;
         job.emailReminder = null;
         // ปิดป๊อปอัพเตือนส่งอีเมล ถ้ากำลังเปิดอยู่สำหรับงานนี้
@@ -3730,6 +3865,68 @@ async function reQueueEmailReminder(id){
   render();
   toast("🔔 ตั้งเตือนส่งอีเมลใหม่แล้วค่ะ");
   showNextEmailReminder();
+}
+
+// ข้อ 2/3: ทำเครื่องหมายว่างาน "ส่งแล้ว" จริง (ตามปฏิทิน ไม่เกี่ยวกับสถานะขั้นตอนงาน) — หยุดเตือนวันส่งงานทุกจุดหลังจากนี้
+async function setShipped(id, opts={}){
+  const { skipConfirm=false } = opts;
+  const j = jobs.find(x=>x.id===id);
+  if(!j) return false;
+  if(j.shipped) return true;
+  if(!skipConfirm && !confirm(`ยืนยันว่างาน "${j.job||'ไม่มีชื่องาน'}" จัดส่งแล้วใช่หรือไม่?`)) return false;
+  j.shipped = true;
+  j.shippedAt = Date.now();
+  j.shippedBy = currentUser?.name || '';
+  await saveSingleJob(id);
+  render();
+  toast('🚚 บันทึกว่าส่งแล้วค่ะ');
+  return true;
+}
+
+// ข้อ 2: ป๊อปอัพเตือนวันส่งงานตอน login (พื้นหลังส้ม) — รวมทุกงานที่ใกล้ถึงวันส่ง (เฉพาะงานของตัวเอง) เตือนแค่ครั้งแรกของวัน
+function checkDeliveryReminders(){
+  if(!currentUser) return;
+  const today = todayKey();
+  const loginKey = `deliveryAlerted_${currentUser.username}_${today}`;
+  if(localStorage.getItem(loginKey)) return; // เตือนไปแล้วในวันนี้
+  localStorage.setItem(loginKey, '1');
+  const { soon, tomorrow } = getUpcomingDeliveries();
+  const list = [...tomorrow, ...soon];
+  if(!list.length) return;
+  showDeliveryReminderPopup(list);
+}
+
+function showDeliveryReminderPopup(list){
+  const box = $('deliveryReminderList');
+  if(!box) return;
+  box.innerHTML = list.map(j=>{
+    const d = daysUntil(j.deliveryDate);
+    return `
+    <label class="dr-item" data-jobid="${j.id}">
+      <input type="checkbox" data-drcheck="${j.id}">
+      <div class="dr-info">
+        <div class="dr-name">${escapeHtml(j.job||'ไม่มีชื่องาน')}</div>
+        <div class="dr-meta">${sellerDisplay(j)} · ส่ง ${formatDate(j.deliveryDate)}${d===1?' (พรุ่งนี้!)':''}</div>
+      </div>
+    </label>`;
+  }).join('');
+  $('deliveryReminderModal').style.display = 'flex';
+  box.querySelectorAll('[data-drcheck]').forEach(cb=>{
+    cb.onchange = async ()=>{
+      if(!cb.checked) return;
+      cb.disabled = true;
+      const jobId = cb.dataset.drcheck;
+      const ok = await setShipped(jobId, { skipConfirm:true });
+      const item = box.querySelector(`.dr-item[data-jobid="${jobId}"]`);
+      if(ok && item){ item.remove(); }
+      else { cb.disabled = false; }
+      if(!box.querySelector('[data-drcheck]')) closeDeliveryReminderPopup();
+    };
+  });
+}
+function closeDeliveryReminderPopup(){
+  const m = $('deliveryReminderModal');
+  if(m) m.style.display = 'none';
 }
 
 
@@ -4090,7 +4287,7 @@ function checkEmailReminders(){
   localStorage.setItem(loginKey, '1');
 
   jobs.forEach(j=>{
-    if(j.emailSent !== false) return;
+    if(!orderEmailPending(j)) return;
     if(j.seller !== currentUser.name) return; // เฉพาะงานของตัวเอง
     if(!j.cancelled) queueEmailReminder(j.id);
   });
@@ -4134,6 +4331,9 @@ async function saveFromModal(){
       sampleConverted: false,
       awaitingRealOrder: false,
       stages: { summary:{done:false,by:""}, order:{done:false,by:""}, checked:{done:false,by:""}, printed:{done:false,by:""}, marked:{done:false,by:""}, received:{done:false,by:""} },
+      shipped: false,
+      shippedAt: null,
+      shippedBy: null,
       createdAt: Date.now()
     };
     jobs.push(newJob);
@@ -4432,6 +4632,12 @@ setInterval(checkEmailReminders, 5*60000);
   window.rejectDelete = rejectDelete;
   window.saveManualSales = saveManualSales;
   window.openManualSalesModal = openManualSalesModal;
+  window.showSellerBreakdown = showSellerBreakdown;
+  window.showPeriodBreakdown = showPeriodBreakdown;
+  window.closeBreakdownModal = closeBreakdownModal;
+  window.closeDeliveryReminderPopup = closeDeliveryReminderPopup;
+  window.approveLeadDelete = approveLeadDelete;
+  window.rejectLeadDelete = rejectLeadDelete;
 
   window.supabase = {
     createClient: () => window._sb
