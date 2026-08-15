@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect } from 'react';
@@ -312,6 +311,12 @@ export default function Home() {
       <div className="field">
         <label>ชื่อบริษัท</label>
         <input type="text" id="l_companyName" placeholder="ชื่อบริษัท (ถ้ามี)" />
+      </div>
+    </div>
+    <div className="field-row">
+      <div className="field">
+        <label>ชื่อที่เรียก (ตั้งเอง) <span style={{"fontWeight":"400","color":"var(--ink-soft)","fontSize":"11.5px"}}>ไม่ถูกเขียนทับอัตโนมัติ ใช้ค้นหาตอนสร้างงานได้ด้วย</span></label>
+        <input type="text" id="l_nickname" placeholder="เช่น K.แอน เคียวโง" />
       </div>
     </div>
     <div className="field-row">
