@@ -211,6 +211,28 @@ export default function Home() {
   </div>
 </div>
 
+{/*  ข้อ 2: ป๊อปอัพเตือนงานใกล้ถึงวันส่ง ตอน login (พื้นหลังส้ม) */}
+<div id="deliveryReminderModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(43,37,32,0.6)","zIndex":"305","alignItems":"center","justifyContent":"center","padding":"16px"}}>
+  <div className="delivery-box">
+    <div className="dr-icon">🚚</div>
+    <h3>งานใกล้ถึงวันส่ง</h3>
+    <p>ติ๊ก &ldquo;ส่งแล้ว&rdquo; สำหรับงานที่จัดส่งเรียบร้อยแล้ว — งานที่เหลือจะยังคงเตือนต่อไปจนกว่าจะติ๊ก</p>
+    <div id="deliveryReminderList"></div>
+    <button className="btn ghost" style={{"width":"100%","marginTop":"10px"}} onClick={() => { if(window.closeDeliveryReminderPopup) window.closeDeliveryReminderPopup(); }}>ปิด (เตือนอีกครั้งพรุ่งนี้)</button>
+  </div>
+</div>
+
+{/*  ข้อ 7: ป๊อปอัพดูรายละเอียดย่อยของยอดขายรวม  */}
+<div id="breakdownModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(0,0,0,.55)","zIndex":"306","alignItems":"center","justifyContent":"center","padding":"16px"}} onClick={(e) => { if(e.target.id === "breakdownModal" && window.closeBreakdownModal) window.closeBreakdownModal(); }}>
+  <div style={{"background":"#fff","borderRadius":"14px","padding":"22px 24px","maxWidth":"680px","width":"100%","maxHeight":"85vh","overflowY":"auto","boxShadow":"0 12px 30px rgba(0,0,0,.3)"}}>
+    <div style={{"display":"flex","justifyContent":"space-between","alignItems":"center","marginBottom":"12px","gap":"10px"}}>
+      <h3 id="breakdownTitle" style={{"margin":"0","fontFamily":"'Kanit'","fontSize":"16px","color":"var(--olive-dark)"}}>รายละเอียดยอดขาย</h3>
+      <button className="btn ghost" style={{"padding":"4px 12px","fontSize":"12px","flexShrink":"0"}} onClick={() => { if(window.closeBreakdownModal) window.closeBreakdownModal(); }}>✕ ปิด</button>
+    </div>
+    <div id="breakdownBody"></div>
+  </div>
+</div>
+
 {/*  User management modal (manager only)  */}
 <div className="modal-overlay" id="userModalOverlay" onClick={(e) => { if(e.target.id === "userModalOverlay" && window.closeUserModal) window.closeUserModal(); }}>
   <div className="modal">
