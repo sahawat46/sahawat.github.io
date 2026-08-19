@@ -236,7 +236,7 @@ export default function Home() {
 <div className="modal-overlay" id="userModalOverlay" onClick={(e) => { if(e.target.id === "userModalOverlay" && window.closeUserModal) window.closeUserModal(); }}>
   <div className="modal">
     <h2>👥 จัดการผู้ใช้งาน</h2>
-    <p style={{"fontSize":"12.5px","color":"var(--ink-soft)","marginTop":"-8px"}}>Manager (แอร์ / ออย / เอก / เอ็กซ์) เป็นผู้กำหนด username และรหัสผ่าน 6 หลักให้สมาชิกแต่ละคน</p>
+    <p style={{"fontSize":"12.5px","color":"var(--ink-soft)","marginTop":"-8px"}}>Manager (แอร์ / ออย / เอก / เอ็กซ์) เป็นผู้กำหนด username ให้สมาชิกแต่ละคน — ส่วนรหัสผ่านสำหรับเข้าสู่ระบบ ให้ตั้ง/เปลี่ยนที่ Supabase Dashboard โดยตรง (ฟอร์มนี้ไม่มีผลต่อรหัสผ่านเข้าสู่ระบบจริง)</p>
     <div id="userListBox" style={{"maxHeight":"260px","overflowY":"auto","border":"1px solid var(--line)","borderRadius":"9px","padding":"4px 10px","marginBottom":"16px"}}></div>
     <h3 style={{"fontSize":"14px","color":"var(--olive-dark)","margin":"0 0 8px"}}>+ เพิ่ม/แก้ไขผู้ใช้งาน</h3>
     <input type="hidden" id="u_editId" value="" />
@@ -286,10 +286,6 @@ export default function Home() {
       <div className="field">
         <label>Username</label>
         <input type="text" id="u_username" placeholder="username" autocomplete="off" />
-      </div>
-      <div className="field">
-        <label>รหัสผ่าน (6 หลัก)</label>
-        <input type="password" id="u_password" placeholder="••••••" maxlength="6" inputmode="numeric" autocomplete="off" />
       </div>
     </div>
     <div className="modal-actions">

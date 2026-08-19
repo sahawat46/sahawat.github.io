@@ -1173,6 +1173,7 @@ async function loadUsers(){
       const { data, error } = await _sb.from('users_tbl').select('*');
       if(error) throw error;
       users = (data||[]).map(r => {
+        delete r.user_data.password; // ไม่ใช้ล็อกอินจริง (ใช้ Supabase Auth แทน) — ไม่ต้องคงไว้ในหน่วยความจำ
         r.user_data.db_id = r.id;
         return r.user_data;
       });
@@ -1183,7 +1184,7 @@ async function loadUsers(){
   }catch(e){ users=[]; }
   if(!users.length){
     users = SEED_STAFF_NAMES.map((name,i)=>({
-      id:"user_"+Date.now()+"_"+i, name, username:name, password:"123456",
+      id:"user_"+Date.now()+"_"+i, name, username:name,
       role:DEFAULT_MANAGERS.includes(name)?"manager":"staff", active:true, createdAt:Date.now()
     }));
     await saveUsers();
@@ -1192,7 +1193,7 @@ async function loadUsers(){
     let changed=false;
     ENSURE_STAFF.forEach((name,i)=>{
       if(!users.some(u=>u.name===name)){
-        users.push({ id:"user_"+Date.now()+"_ensure_"+i, name, username:name, password:"123456",
+        users.push({ id:"user_"+Date.now()+"_ensure_"+i, name, username:name,
           role:"staff", active:true, createdAt:Date.now() });
         changed=true;
       }
@@ -1205,7 +1206,8 @@ async function saveUsers(){
   try{
     if(_useSupabase){
       const rows = users.map(u => {
-        const row = { user_data: u };
+        const { password, ...userData } = u; // ไม่บันทึกรหัสผ่าน plaintext ลง users_tbl
+        const row = { user_data: userData };
         if (u.db_id) row.id = u.db_id;
         return row;
       });
@@ -1419,7 +1421,6 @@ function fillUserForm(id){
   if($("perm_jobs_edit")) $("perm_jobs_edit").checked = _perms ? !!_perms["jobs_edit"] : false;
   updateRoleDesc();
   $("u_username").value = u.username;
-  $("u_password").value = "";
 }
 function clearUserForm(){
   editingUserId = null;
@@ -1434,7 +1435,6 @@ function clearUserForm(){
   if($("perm_jobs_edit")) $("perm_jobs_edit").checked = false;
   updateRoleDesc();
   $("u_username").value = "";
-  $("u_password").value = "";
 }
 
 function updateRoleDesc(){
@@ -1466,7 +1466,6 @@ async function saveUserAccount(){
   if(!requireManager()) return;
   const name = $("u_name").value.trim();
   const username = $("u_username").value.trim();
-  const password = $("u_password").value.trim();
   const role = $("u_role").value;
   // อ่านสิทธิ์รายบุคคล
   const PERM_KEYS = ['card','summary_direct','summary_admin','lead','expense_noprofit','jobs_edit'];
@@ -1480,14 +1479,9 @@ async function saveUserAccount(){
   if(editingUserId){
     const u = users.find(x=>x.id===editingUserId);
     u.name = name; u.username = username; u.role = role; u.permissions = permissions;
-    if(password){
-      if(!/^[0-9]{6}$/.test(password)){ alert("รหัสผ่านต้องเป็นตัวเลข 6 หลัก"); return; }
-      u.password = password;
-    }
   }else{
-    if(!password){ alert("กรุณาตั้งรหัสผ่าน 6 หลักสำหรับสมาชิกใหม่"); return; }
-    if(!/^[0-9]{6}$/.test(password)){ alert("รหัสผ่านต้องเป็นตัวเลข 6 หลัก"); return; }
-    users.push({ id:"user_"+Date.now()+"_"+Math.floor(Math.random()*1000), name, username, password, role, permissions, active:true, createdAt:Date.now() });
+    users.push({ id:"user_"+Date.now()+"_"+Math.floor(Math.random()*1000), name, username, role, permissions, active:true, createdAt:Date.now() });
+    toast("สร้าง username ในระบบแล้ว — อย่าลืมไปสร้างบัญชี Supabase Auth (อีเมล+รหัสผ่าน) ให้ตรงกันที่ Supabase Dashboard เพื่อให้ล็อกอินได้จริง");
   }
   await saveUsers();
   clearUserForm();
