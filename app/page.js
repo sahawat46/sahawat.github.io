@@ -312,14 +312,6 @@ export default function Home() {
         <label>ชื่อบริษัท</label>
         <input type="text" id="l_companyName" placeholder="ชื่อบริษัท (ถ้ามี)" />
       </div>
-    </div>
-    <div className="field-row">
-      <div className="field">
-        <label>ชื่อที่เรียก (ตั้งเอง) <span style={{"fontWeight":"400","color":"var(--ink-soft)","fontSize":"11.5px"}}>ไม่ถูกเขียนทับอัตโนมัติ ใช้ค้นหาตอนสร้างงานได้ด้วย</span></label>
-        <input type="text" id="l_nickname" placeholder="เช่น K.แอน เคียวโง" />
-      </div>
-    </div>
-    <div className="field-row">
       <div className="field">
         <label>วันที่ลูกค้าทักมา</label>
         <input type="date" id="l_contactDate" />
@@ -327,6 +319,12 @@ export default function Home() {
       <div className="field">
         <label>เวลาที่ลูกค้าทักมา</label>
         <input type="time" id="l_contactTime" />
+      </div>
+    </div>
+    <div className="field-row">
+      <div className="field">
+        <label>ชื่อที่เรียก (ตั้งเอง) <span style={{"fontWeight":"400","color":"var(--ink-soft)","fontSize":"11.5px"}}>ไม่ถูกเขียนทับอัตโนมัติ ใช้ค้นหาตอนสร้างงานได้ด้วย</span></label>
+        <input type="text" id="l_nickname" placeholder="เช่น K.แอน เคียวโง" />
       </div>
     </div>
     <div className="field-row">
@@ -366,12 +364,22 @@ export default function Home() {
         <select id="l_clientType">
           <option value="">— เลือกประเภท —</option>
           <option value="บริษัทเอกชน">บริษัทเอกชน</option>
-          <option value="โรงเรียน">โรงเรียน</option>
-          <option value="บุคคล">บุคคล</option>
-          <option value="มูลนิธิ">มูลนิธิ</option>
-          <option value="องค์กรรัฐ">องค์กรรัฐ</option>
+          <option value="หน่วยงานราชการ">หน่วยงานราชการ</option>
+          <option value="นายหน้าคนกลาง">นายหน้าคนกลาง</option>
+          <option value="ส่วนบุคคล">ส่วนบุคคล</option>
+          <option value="เจ้าของแบรนด์เสื้อ">เจ้าของแบรนด์เสื้อ</option>
+          <option value="รร.โดยตรง">รร.โดยตรง</option>
+          <option value="นักเรียน นักศึกษา">นักเรียน นักศึกษา</option>
+          <option value="ร้านผ้า">ร้านผ้า</option>
+          <option value="เสื้อพนักงานร้าน">เสื้อพนักงานร้าน</option>
+          <option value="โรงแรม">โรงแรม</option>
+          <option value="กลุ่มกิจกรรม">กลุ่มกิจกรรม</option>
           <option value="อื่นๆ">อื่นๆ</option>
         </select>
+      </div>
+      <div className="field" id="l_clientTypeOtherWrap" style={{"display":"none"}}>
+        <label>ระบุประเภทลูกค้า (อื่นๆ)</label>
+        <input type="text" id="l_clientTypeOther" placeholder="ระบุข้อมูลเพิ่มเติม" />
       </div>
     </div>
     <div className="field-row">

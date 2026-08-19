@@ -1065,6 +1065,16 @@ function applyRoleUI(){
   tb('viewExpenseBtn', canAccess('expense'));
   tb('addBtn',         canAccess('add_job'));
   tb('manageUsersBtn', canAccess('manage_users'));
+  tb('addLeadBtn',     canAccess('lead'));
+
+  // ถ้าเข้าถึงได้แค่ Lead อย่างเดียว (ไม่มีสิทธิ์การ์ด/ตาราง/สรุปยอด/ค่าใช้จ่ายเลย) → ซ่อนฟังก์ชันของงานทั้งหมด เหลือแต่ Lead
+  const leadOnly = canAccess('lead') && !canAccess('card') && !canAccess('table') && !canAccess('summary') && !canAccess('expense');
+  tb('exportBtn', !leadOnly);
+  tb('alertRow', !leadOnly);
+  tb('summaryRow', !leadOnly);
+  const toolbarEl = document.querySelector('.toolbar');
+  if(toolbarEl) toolbarEl.style.display = leadOnly ? 'none' : '';
+
   // ถ้า currentView ไม่มีสิทธิ์ → เปลี่ยน view
   const viewOk = {
     card: canAccess('card'), table: canAccess('table'),
@@ -1073,6 +1083,9 @@ function applyRoleUI(){
   };
   if(!viewOk[currentView]){
     if(canAccess('card')) currentView='card';
+    else if(canAccess('table')) currentView='table';
+    else if(canAccess('summary')) currentView='summary';
+    else if(canAccess('lead')) currentView='leads';
     else if(canAccess('expense')) currentView='expense';
   }
   // แสดงชื่อ role ใน topbar
@@ -1789,6 +1802,8 @@ function openLeadModal(id){
     $("l_contactTime").value = l.contactTime || "";
     $("l_province").value = l.province || "";
     $("l_clientType").value = l.clientType || "";
+    if($("l_clientTypeOther")) $("l_clientTypeOther").value = l.clientTypeOther || "";
+    if($("l_clientTypeOtherWrap")) $("l_clientTypeOtherWrap").style.display = l.clientType==='อื่นๆ' ? '' : 'none';
     $("l_address").value = l.address||"";
     $("l_taxId").value = l.taxId||"";
     $("l_phone1").value = (l.phones&&l.phones[0])||"";
@@ -1809,6 +1824,8 @@ function openLeadModal(id){
     $("l_contactTime").value = now.toTimeString().slice(0,5);
     $("l_province").value = "";
     $("l_clientType").value = "";
+    if($("l_clientTypeOther")) $("l_clientTypeOther").value = "";
+    if($("l_clientTypeOtherWrap")) $("l_clientTypeOtherWrap").style.display = 'none';
     $("l_shipMode").value = "company";
     $("l_billMode").value = "company";
   }
@@ -1834,6 +1851,7 @@ async function saveLeadFromModal(){
     contactTime: $("l_contactTime").value,
     province: $("l_province").value,
     clientType: $("l_clientType").value,
+    clientTypeOther: $("l_clientType").value==='อื่นๆ' ? ($("l_clientTypeOther") ? $("l_clientTypeOther").value.trim() : '') : '',
     address: $("l_address").value.trim(),
     taxId: $("l_taxId").value.trim(),
     phones: [$("l_phone1").value.trim(), $("l_phone2").value.trim(), $("l_phone3").value.trim(), $("l_phone4").value.trim()],
@@ -2083,7 +2101,7 @@ function renderLeadsView(){
             <button onclick="window.clearPossibleDuplicateFlag('${l.id}')" class="row-del-btn" style="font-size:9.5px;padding:1px 5px;margin-left:2px;" title="ตรวจสอบแล้วไม่ซ้ำ — ล้างป้ายเตือนนี้">✓ ตรวจสอบแล้ว</button>
           </div>` : ''}</td>
         <td>${l.nickname ? `<span style="font-weight:600;color:var(--olive-dark);">${escapeHtml(l.nickname)}</span>` : '-'}</td>
-        <td>${l.clientType ? `<span class="badge-type" style="background:#EEE6F5;color:#5B2C8A;">${escapeHtml(l.clientType)}</span>` : '-'}</td>
+        <td>${l.clientType ? `<span class="badge-type" style="background:#EEE6F5;color:#5B2C8A;" ${l.clientType==='อื่นๆ' && l.clientTypeOther ? `title="${escapeAttr(l.clientTypeOther)}"` : ''}>${escapeHtml(l.clientType)}${l.clientType==='อื่นๆ' && l.clientTypeOther ? `: ${escapeHtml(l.clientTypeOther)}` : ''}</span>` : '-'}</td>
         <td>${escapeHtml(l.companyName||'-')}</td>
         <td>${escapeHtml(l.province||'-')}</td>
         <td><span class="badge-type" style="${teamColor}">${escapeHtml(l.team||'-')}</span></td>
@@ -2117,9 +2135,21 @@ function renderLeadsView(){
   });
   const dailyKeys = Object.keys(dailyMap).sort((a,b)=>b.localeCompare(a));
   const maxDailyCount = Math.max(1,...dailyKeys.map(k=>dailyMap[k].total));
-  const dailyRows = dailyKeys.map(k=>{
+  const dailyRows = dailyKeys.map((k,i)=>{
     const g = dailyMap[k];
-    return `<tr><td>${formatDate(k)}</td><td>${g.total}</td><td style="color:var(--khaki-green);font-weight:600;">${g.success}</td><td style="color:var(--stamp-red);">${g.total-g.success}</td></tr>`;
+    let row = `<tr><td>${formatDate(k)}</td><td>${g.total}</td><td style="color:var(--khaki-green);font-weight:600;">${g.success}</td><td style="color:var(--stamp-red);">${g.total-g.success}</td></tr>`;
+    // แถวรวมยอดรายเดือน — แสดงเมื่อเป็นวันสุดท้ายของเดือนนั้นในชุดข้อมูล (เดือนที่ยังไม่จบก็รวมเท่าที่มี)
+    const mk = k.slice(0,7);
+    const nextMk = dailyKeys[i+1] ? dailyKeys[i+1].slice(0,7) : null;
+    if(mk !== nextMk){
+      const monthKeys = dailyKeys.filter(dk=>dk.slice(0,7)===mk);
+      const mTotal = monthKeys.reduce((s,dk)=>s+dailyMap[dk].total,0);
+      const mSuccess = monthKeys.reduce((s,dk)=>s+dailyMap[dk].success,0);
+      const [y,m] = mk.split("-");
+      const mLabel = `${TH_MONTH_ABBR[Number(m)-1]} ${Number(y)+543}`;
+      row += `<tr style="font-weight:700;background:#EFEADA;"><td>รวม ${mLabel}</td><td>${mTotal}</td><td style="color:var(--khaki-green);">${mSuccess}</td><td style="color:var(--stamp-red);">${mTotal-mSuccess}</td></tr>`;
+    }
+    return row;
   }).join("");
 
   // ข้อ 13: Lead analytics — ช่วงเวลาของวันที่มี Lead เข้ามากที่สุด
@@ -2216,6 +2246,7 @@ function renderLeadsView(){
       <table class="rep-table">
         <thead><tr><th>วันที่</th><th>Lead เข้า</th><th>สำเร็จ</th><th>ยังไม่สำเร็จ</th></tr></thead>
         <tbody>${dailyRows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">ยังไม่มีข้อมูล</td></tr>'}</tbody>
+        ${dailyKeys.length ? `<tfoot><tr><td>รวมทั้งหมด (ทุกเดือน)</td><td>${total}</td><td>${success}</td><td>${total-success}</td></tr></tfoot>` : ""}
       </table>
     </div>
     <div class="summary-panel">
@@ -2649,6 +2680,7 @@ function renderTableHtml(list){
         </td>
         <td>
           <button class="row-del-btn" data-edit="${j.id}" title="แก้ไข">✎</button>
+          <button class="row-del-btn" data-copy="${j.id}" title="คัดลอกงาน (สร้างใบงานใหม่)">📋</button>
           ${!j.cancelled ? `<button class="row-del-btn" data-cancel="${j.id}" title="ยกเลิก" style="color:var(--stamp-red);">⊘</button>` : `<button class="row-del-btn" data-uncancel="${j.id}" title="ยกเลิกการยกเลิก" style="color:var(--olive);">↩</button>`}
           <button class="row-del-btn" data-del="${j.id}" title="ลบ">🗑</button>
         </td>
@@ -2726,6 +2758,7 @@ function renderTicket(j){
         <span class="badge ${j.type}">${j.type}</span>
         <div class="ticket-actions">
           <button class="icon-btn" data-edit="${j.id}" title="แก้ไข">✎</button>
+          <button class="icon-btn" data-copy="${j.id}" title="คัดลอกงาน (สร้างใบงานใหม่)">📋</button>
           ${!j.emailSent?'':` <button class="icon-btn" data-requeue="${j.id}" title="เตือนส่งอีเมลออกออเดอร์ใหม่" style="color:#2980B9;">🔔</button>`}
           ${!j.cancelled ? `<button class="icon-btn" data-cancel="${j.id}" title="ยกเลิกงาน" style="color:var(--stamp-red);">⊘</button>` : `<button class="icon-btn" data-uncancel="${j.id}" title="ยกเลิกการยกเลิก" style="color:var(--olive);">↩</button>`}
           <button class="icon-btn" data-del="${j.id}" title="${currentUser?.role==='manager'?'ลบ':'ขออนุมัติลบ'}" style="${j.pendingDelete?'color:#C8862B':''}">${j.pendingDelete?'⏳':'🗑'}</button>
@@ -3761,6 +3794,7 @@ function escapeAttr(s){ return escapeHtml(s); }
 
 function bindTicketEvents(){
   document.querySelectorAll('[data-edit]').forEach(b=>{ b.onclick = async()=>openModal(b.dataset.edit); });
+  document.querySelectorAll('[data-copy]').forEach(b=>{ b.onclick = async()=>copyJob(b.dataset.copy); });
   document.querySelectorAll('[data-del]').forEach(b=>{ b.onclick = ()=>deleteJob(b.dataset.del); });
   document.querySelectorAll('[data-cancel]').forEach(b=>{ b.onclick = ()=>cancelJob(b.dataset.cancel); });
   document.querySelectorAll('[data-uncancel]').forEach(b=>{ b.onclick = ()=>uncancelJob(b.dataset.uncancel); });
@@ -4077,6 +4111,34 @@ function closeModal(){
   if(editingId && _useSupabase) releaseLock(editingId);
   editingId = null;
   _editingVersion = null;
+}
+
+// ข้อ: คัดลอกงาน — เปิดฟอร์ม "เพิ่มงานใหม่" โดยกรอกข้อมูลจากงานเดิมไว้ล่วงหน้า (เช่น อ้างอิงเลขที่ใบเสนอราคาเดิม แต่เพิ่มจำนวน)
+async function copyJob(id){
+  const src = jobs.find(x=>x.id===id);
+  if(!src) return;
+  editingId = null;
+  _editingVersion = null;
+  $("modalTitle").textContent = "คัดลอกงาน (สร้างใบงานใหม่)";
+  populateJobLeadSelect();
+  $("f_seller").value = src.seller;
+  if($("f_manager")) $("f_manager").value = src.manager || src.seller || "";
+  $("f_date").value = new Date().toISOString().slice(0,10);
+  $("f_quote").value = src.quote || "";
+  $("f_jobname").value = src.job || "";
+  $("f_detail").value = src.detail || "";
+  $("f_type").value = src.type || "ตัวอย่าง";
+  $("f_status").value = "";
+  $("f_deliveryDate").value = "";
+  $("f_salesAmount").value = src.salesAmount || "";
+  $("f_qty").value = src.qty || "";
+  renderProductRows(src.productItems || []);
+  $("f_customerType").value = src.customerType || CUSTOMER_TYPES[0];
+  $("f_countInSales").checked = src.countInSales !== false;
+  $("f_leadId").value = src.leadId || "";
+  setLeadField(src.leadId || "");
+  $("modalOverlay").classList.add("open");
+  toast("📋 คัดลอกข้อมูลงานแล้ว ปรับจำนวน/รายละเอียดตามต้องการแล้วกดบันทึกเพื่อสร้างใบงานใหม่");
 }
 
 // ===== ดึงข้อมูลจากลิงค์ใบเสนอราคา sahawath.net =====
@@ -4533,6 +4595,9 @@ $("addLeadBtn").onclick = ()=>openLeadModal(null);
 $("leadCancelBtn").onclick = closeLeadModal;
 $("leadSaveBtn").onclick = saveLeadFromModal;
 $("leadModalOverlay").onclick = (e)=>{ if(e.target.id==='leadModalOverlay') closeLeadModal(); };
+$("l_clientType").onchange = ()=>{
+  if($("l_clientTypeOtherWrap")) $("l_clientTypeOtherWrap").style.display = $("l_clientType").value==='อื่นๆ' ? '' : 'none';
+};
 
 // ===== ค้นหา Lead แบบพิมพ์ค้นหา (ในฟอร์มเพิ่ม/แก้ไขงาน) =====
 $("f_leadSearch").oninput = (e)=>{
