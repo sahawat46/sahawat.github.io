@@ -138,6 +138,7 @@ let emailQueue = []; // คิวงานที่ต้องเด้งเ�
 let leads = [];
 let editingLeadId = null;
 let leadPeriod = 'month'; // day | month | quarter | year
+let leadDailyShowAllMonths = false; // สรุป Lead ประจำวัน — false = โชว์เฉพาะเดือนปัจจุบัน, true = โชว์ทุกเดือน
 let users = [];
 let currentUser = null;
 let editingUserId = null;
@@ -2135,14 +2136,17 @@ function renderLeadsView(){
   });
   const dailyKeys = Object.keys(dailyMap).sort((a,b)=>b.localeCompare(a));
   const maxDailyCount = Math.max(1,...dailyKeys.map(k=>dailyMap[k].total));
-  const dailyRows = dailyKeys.map((k,i)=>{
+  const currentMonthKey = new Date().toISOString().slice(0,7);
+  const hasOlderMonths = dailyKeys.some(k=>k.slice(0,7)!==currentMonthKey);
+  const dailyKeysShown = leadDailyShowAllMonths ? dailyKeys : dailyKeys.filter(k=>k.slice(0,7)===currentMonthKey);
+  const dailyRows = dailyKeysShown.map((k,i)=>{
     const g = dailyMap[k];
     let row = `<tr><td>${formatDate(k)}</td><td>${g.total}</td><td style="color:var(--khaki-green);font-weight:600;">${g.success}</td><td style="color:var(--stamp-red);">${g.total-g.success}</td></tr>`;
     // แถวรวมยอดรายเดือน — แสดงเมื่อเป็นวันสุดท้ายของเดือนนั้นในชุดข้อมูล (เดือนที่ยังไม่จบก็รวมเท่าที่มี)
     const mk = k.slice(0,7);
-    const nextMk = dailyKeys[i+1] ? dailyKeys[i+1].slice(0,7) : null;
+    const nextMk = dailyKeysShown[i+1] ? dailyKeysShown[i+1].slice(0,7) : null;
     if(mk !== nextMk){
-      const monthKeys = dailyKeys.filter(dk=>dk.slice(0,7)===mk);
+      const monthKeys = dailyKeysShown.filter(dk=>dk.slice(0,7)===mk);
       const mTotal = monthKeys.reduce((s,dk)=>s+dailyMap[dk].total,0);
       const mSuccess = monthKeys.reduce((s,dk)=>s+dailyMap[dk].success,0);
       const [y,m] = mk.split("-");
@@ -2242,10 +2246,13 @@ function renderLeadsView(){
       </table>
     </div>
     <div class="summary-panel">
-      <h3>📅 สรุป Lead ประจำวัน (ข้อ 12)</h3>
+      <h3 style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <span>📅 สรุป Lead ประจำวัน (ข้อ 12)</span>
+        ${hasOlderMonths ? `<button class="btn ghost" id="toggleLeadDailyMonths" style="padding:4px 10px;font-size:12px;">${leadDailyShowAllMonths ? '▴ ซ่อนเดือนก่อนหน้า' : '▾ แสดงเดือนก่อนหน้า'}</button>` : ''}
+      </h3>
       <table class="rep-table">
         <thead><tr><th>วันที่</th><th>Lead เข้า</th><th>สำเร็จ</th><th>ยังไม่สำเร็จ</th></tr></thead>
-        <tbody>${dailyRows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">ยังไม่มีข้อมูล</td></tr>'}</tbody>
+        <tbody>${dailyRows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">ยังไม่มีข้อมูลในเดือนนี้</td></tr>'}</tbody>
         ${dailyKeys.length ? `<tfoot><tr><td>รวมทั้งหมด (ทุกเดือน)</td><td>${total}</td><td>${success}</td><td>${total-success}</td></tr></tfoot>` : ""}
       </table>
     </div>
@@ -2288,6 +2295,8 @@ function renderLeadsView(){
 function bindLeadEvents(){
   document.querySelectorAll('[data-leadedit]').forEach(b=>{ b.onclick = ()=>openLeadModal(b.dataset.leadedit); });
   document.querySelectorAll('[data-leaddel]').forEach(b=>{ b.onclick = ()=>deleteLead(b.dataset.leaddel); });
+  const toggleDailyMonths = $("toggleLeadDailyMonths");
+  if(toggleDailyMonths) toggleDailyMonths.onclick = ()=>{ leadDailyShowAllMonths = !leadDailyShowAllMonths; renderList(); };
   const p = $("leadPeriodSel");
   if(p) p.onchange = ()=>{ leadPeriod = p.value; renderList(); };
   // ข้อ 11: Lead date range filter
