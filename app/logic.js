@@ -324,6 +324,7 @@ async function loadJobs(){
   if(od>0) setTimeout(()=>toast(`⚠ มีงานค้างเกินกำหนด ${od} รายการ`),500);
   setTimeout(checkEmailReminders,900);
   setTimeout(checkDeliveryReminders,900); // ข้อ 2: เตือนวันส่งงานตอน login (auto-login)
+  setTimeout(checkOverdueDeliveries,900); // เตือนงานเลยกำหนดส่งตอน login (auto-login)
 }
 
 async function saveJobs(){
@@ -767,7 +768,7 @@ function renderExpMonthly(allYears){
   const rows = TH_MONTHS.map((mLabel,i)=>{
     const m = i+1;
     const totals = selYears.map(y=>expTotal(getExpMonth(y,m)));
-    const cells = selYears.map((y,idx)=>`<td style="text-align:right;">${totals[idx]?totals[idx].toLocaleString():'-'}</td>`).join('');
+    const cells = selYears.map((y,idx)=>`<td style="text-align:right;cursor:pointer;" title="แก้ไขค่าใช้จ่ายเดือนนี้" onclick="window.openExpenseModal(${y},${m})">${totals[idx]?totals[idx].toLocaleString():'-'}</td>`).join('');
     return `<tr><td>${mLabel}</td>${cells}</tr>`;
   }).join('');
   const footTotals = selYears.map(y=>{
@@ -902,7 +903,7 @@ function renderExpDetail(allYears, yearOpts){
     const annual = [1,2,3,4,5,6,7,8,9,10,11,12].reduce((s,m)=>{const e=getExpMonth(expYear,m);return s+(e?(e.cats[key]||0):0);},0);
     return `<tr><td style="font-size:12px;white-space:nowrap;">${escapeHtml(EXP_CAT_LABELS[key])}</td>${cells}<td style="font-weight:700;text-align:right;">${annual?annual.toLocaleString():'-'}</td></tr>`;
   }).join('');
-  const totals = [1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<td style="font-weight:700;text-align:right;">${(expTotal(getExpMonth(expYear,m))||0).toLocaleString()}</td>`).join('');
+  const totals = [1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<td style="font-weight:700;text-align:right;cursor:pointer;" title="แก้ไขค่าใช้จ่ายเดือนนี้" onclick="window.openExpenseModal(${expYear},${m})">${(expTotal(getExpMonth(expYear,m))||0).toLocaleString()}</td>`).join('');
   const grandTotal = [1,2,3,4,5,6,7,8,9,10,11,12].reduce((s,m)=>s+expTotal(getExpMonth(expYear,m)),0);
   return `${sel}<div class="summary-panel"><h3>📋 รายละเอียดค่าใช้จ่ายแยกหมวดหมู่ ปี ${expYear+543}</h3>
     <div style="overflow-x:auto;"><table class="rep-table">
@@ -1333,6 +1334,7 @@ async function tryLogin(){
   toast(`👋 ยินดีต้อนรับ ${u.name}`);
   render();
   setTimeout(checkDeliveryReminders, 500); // ข้อ 2: เตือนวันส่งงานตอน login
+  setTimeout(checkOverdueDeliveries, 500); // เตือนงานเลยกำหนดส่งตอน login
 }
 
 function doLogout(){
@@ -2487,6 +2489,107 @@ function getUpcomingDeliveries(){
   return { soon, tomorrow };
 }
 
+// งานที่เลยวันกำหนดส่งมาแล้ว แต่ยังไม่ได้ติ๊ก "ส่งแล้ว" (แยกจากงานใกล้ส่ง — เฉพาะงานของตัวเอง)
+function getOverdueDeliveries(){
+  const overdue = [];
+  if(!currentUser) return overdue;
+  jobs.forEach(j=>{
+    if(j.shipped || j.cancelled || !j.deliveryDate) return;
+    if(j.seller !== currentUser.name) return;
+    const d = daysUntil(j.deliveryDate);
+    if(d!==null && d<0) overdue.push(j);
+  });
+  return overdue;
+}
+
+// รายงานงานที่เลยกำหนดส่ง (ทุกงาน ไม่จำกัดเฉพาะของตัวเอง) — รวมทั้งที่ยังไม่ส่งและที่ส่งไปแล้วแต่ช้ากว่ากำหนด
+function getLateShipmentJobs(){
+  return jobs.filter(j=>{
+    if(j.cancelled || !j.deliveryDate) return false;
+    if(j.shipped){
+      if(!j.shippedAt) return false;
+      const shippedDateStr = new Date(j.shippedAt).toISOString().slice(0,10);
+      return shippedDateStr > j.deliveryDate;
+    }
+    const d = daysUntil(j.deliveryDate);
+    return d!==null && d<0;
+  });
+}
+
+function renderLateShipmentReport(){
+  const lateJobs = getLateShipmentJobs();
+  const monthGroups = {};
+  lateJobs.forEach(j=>{
+    const k = monthKeyOf(j.deliveryDate, j.createdAt);
+    if(!monthGroups[k]) monthGroups[k] = [];
+    monthGroups[k].push(j);
+  });
+  const monthKeys = Object.keys(monthGroups).sort((a,b)=>b.localeCompare(a));
+  const monthRows = monthKeys.map(k=>{
+    const list = monthGroups[k];
+    const stillOpen = list.filter(j=>!j.shipped).length;
+    const shippedLate = list.filter(j=>j.shipped).length;
+    return `<tr><td>${monthLabel(k)}</td><td>${list.length}</td><td style="color:var(--stamp-red);">${stillOpen}</td><td style="color:var(--khaki-green);">${shippedLate}</td></tr>`;
+  }).join('');
+  const totalAll = lateJobs.length;
+  const totalOpen = lateJobs.filter(j=>!j.shipped).length;
+  const totalShippedLate = lateJobs.filter(j=>j.shipped).length;
+
+  const yearGroups = {};
+  lateJobs.forEach(j=>{
+    const y = Number(monthKeyOf(j.deliveryDate, j.createdAt).split('-')[0]);
+    if(!yearGroups[y]) yearGroups[y] = [];
+    yearGroups[y].push(j);
+  });
+  const yearKeys = Object.keys(yearGroups).map(Number).sort((a,b)=>b-a);
+  const yearRows = yearKeys.map(y=>{
+    const list = yearGroups[y];
+    const stillOpen = list.filter(j=>!j.shipped).length;
+    const shippedLate = list.filter(j=>j.shipped).length;
+    return `<tr><td>ปี ${toBE(y)}</td><td>${list.length}</td><td style="color:var(--stamp-red);">${stillOpen}</td><td style="color:var(--khaki-green);">${shippedLate}</td></tr>`;
+  }).join('');
+
+  const detailRows = lateJobs.slice().sort((a,b)=>(b.deliveryDate||'').localeCompare(a.deliveryDate||'')).map(j=>{
+    let statusHtml;
+    if(j.shipped){
+      const shippedDateStr = new Date(j.shippedAt).toISOString().slice(0,10);
+      const lateDays = Math.round((new Date(shippedDateStr+"T00:00:00") - new Date(j.deliveryDate+"T00:00:00"))/86400000);
+      statusHtml = `<span style="color:var(--khaki-green);">ส่งแล้ว (ช้า ${lateDays} วัน)</span>`;
+    } else {
+      const d = daysUntil(j.deliveryDate);
+      statusHtml = `<span style="color:var(--stamp-red);font-weight:600;">ยังไม่ส่ง (เลยมา ${Math.abs(d)} วัน)</span>`;
+    }
+    return `<tr><td>${escapeHtml(j.job||'-')}</td><td>${sellerDisplay(j)}</td><td>${formatDate(j.deliveryDate)}</td><td>${statusHtml}</td></tr>`;
+  }).join('');
+
+  return `
+    <div class="summary-panel">
+      <h3>🚨 รายงานงานที่เลยกำหนดส่ง — รายเดือน</h3>
+      <table class="rep-table">
+        <thead><tr><th>เดือน (ตามกำหนดส่ง)</th><th>รวมเลยกำหนด</th><th>ยังไม่ส่ง</th><th>ส่งแล้ว (ช้า)</th></tr></thead>
+        <tbody>${monthRows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">ไม่มีงานเลยกำหนดส่งเลยค่ะ 🎉</td></tr>'}</tbody>
+        <tfoot><tr><td>รวมทั้งหมด</td><td>${totalAll}</td><td>${totalOpen}</td><td>${totalShippedLate}</td></tr></tfoot>
+      </table>
+    </div>
+    <div class="summary-panel">
+      <h3>📆 รายงานงานที่เลยกำหนดส่ง — รายปี</h3>
+      <table class="rep-table">
+        <thead><tr><th>ปี</th><th>รวมเลยกำหนด</th><th>ยังไม่ส่ง</th><th>ส่งแล้ว (ช้า)</th></tr></thead>
+        <tbody>${yearRows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">ไม่มีข้อมูล</td></tr>'}</tbody>
+      </table>
+    </div>
+    ${lateJobs.length ? `<div class="summary-panel">
+      <h3>📋 รายละเอียดงานที่เลยกำหนดส่งทั้งหมด</h3>
+      <div class="table-wrap" style="max-height:50vh;">
+        <table class="ov-table">
+          <thead><tr><th>ชื่องาน</th><th>เซลล์</th><th>กำหนดส่ง</th><th>สถานะ</th></tr></thead>
+          <tbody>${detailRows}</tbody>
+        </table>
+      </div>
+    </div>` : ''}
+  `;
+}
+
 // ข้อ 8-9: กล่องเตือนใกล้ถึงกำหนดส่ง / พรุ่งนี้ส่ง (อิงวันที่ส่งงาน)
 function renderAlerts(){
   const el = $("alertRow");
@@ -3464,6 +3567,7 @@ function renderSummaryView(){
       </table>
     </div>
     ${crossTabHtml}
+    ${renderLateShipmentReport()}
   `;
 }
 
@@ -3834,9 +3938,15 @@ function handleStageClick(e, stepEl){
   if(left + 170 > window.innerWidth) left = window.innerWidth - 180;
   pop.style.left = left + "px";
 
+  // เอาชื่อคนที่ล็อกอินอยู่ขึ้นบนสุดของรายชื่อ เพื่อให้เลือกตัวเองได้เร็วที่สุด
+  const staffNames = getActiveStaffNames();
+  const orderedStaffNames = currentUser?.name
+    ? [currentUser.name, ...staffNames.filter(p=>p!==currentUser.name)]
+    : staffNames;
+
   pop.innerHTML = `
     <div class="ap-title">${stageDef.label} — เลือกผู้ทำ</div>
-    ${getActiveStaffNames().map(p=>`<button data-person="${p}">${st.done && st.by===p ? '✓ ' : ''}${p}</button>`).join("")}
+    ${orderedStaffNames.map(p=>`<button data-person="${p}">${st.done && st.by===p ? '✓ ' : ''}${p}</button>`).join("")}
     ${st.done ? `<button class="undo" data-undo="1">↺ ยกเลิกสถานะนี้</button>` : ''}
   `;
   document.body.appendChild(pop);
@@ -4051,6 +4161,78 @@ function showDeliveryReminderPopup(list){
 }
 function closeDeliveryReminderPopup(){
   const m = $('deliveryReminderModal');
+  if(m) m.style.display = 'none';
+}
+
+// ป๊อปอัพเตือนงานที่เลยกำหนดส่งแล้ว ตอน login (พื้นหลังแดง แยกจากงานใกล้ส่ง) เตือนแค่ครั้งแรกของวัน
+function checkOverdueDeliveries(){
+  if(!currentUser) return;
+  const today = todayKey();
+  const loginKey = `overdueAlerted_${currentUser.username}_${today}`;
+  if(localStorage.getItem(loginKey)) return;
+  localStorage.setItem(loginKey, '1');
+  const list = getOverdueDeliveries();
+  if(!list.length) return;
+  showOverdueDeliveryPopup(list);
+}
+
+function showOverdueDeliveryPopup(list){
+  const box = $('overdueDeliveryList');
+  if(!box) return;
+  box.innerHTML = list.map(j=>{
+    const d = daysUntil(j.deliveryDate);
+    const days = Math.abs(d);
+    return `
+    <div class="od-item" data-jobid="${j.id}">
+      <div class="od-name">${escapeHtml(j.job||'ไม่มีชื่องาน')}</div>
+      <div class="od-meta">${sellerDisplay(j)} · กำหนดส่ง ${formatDate(j.deliveryDate)}</div>
+      <div class="od-days">⚠ เลยกำหนดมาแล้ว ${days} วัน</div>
+      <div class="od-actions">
+        <input type="date" data-oddate="${j.id}" value="${j.deliveryDate}">
+        <button class="btn ghost" style="padding:5px 10px;font-size:12px;" data-odsave="${j.id}">📅 บันทึกวันใหม่</button>
+        <button class="btn" style="padding:5px 10px;font-size:12px;background:var(--khaki-green);color:#fff;" data-odshipped="${j.id}">✓ ส่งแล้ว</button>
+      </div>
+    </div>`;
+  }).join('');
+  $('overdueDeliveryModal').style.display = 'flex';
+  box.querySelectorAll('[data-odsave]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const jobId = btn.dataset.odsave;
+      const dateEl = box.querySelector(`[data-oddate="${jobId}"]`);
+      const newDate = dateEl?.value;
+      if(!newDate){ toast('กรุณาเลือกวันที่ใหม่ก่อนบันทึกค่ะ'); return; }
+      const j = jobs.find(x=>x.id===jobId);
+      if(!j) return;
+      btn.disabled = true;
+      j.deliveryDate = newDate;
+      await saveSingleJob(jobId);
+      const item = box.querySelector(`.od-item[data-jobid="${jobId}"]`);
+      if(item) item.remove();
+      toast('📅 อัปเดตวันจัดส่งใหม่แล้วค่ะ');
+      // ถ้าวันใหม่เข้าเกณฑ์ "ใกล้ส่ง" ให้ย้ายไปโชว์ในป๊อปอัพงานใกล้ส่งแทน
+      const dNew = daysUntil(newDate);
+      if(dNew!==null && dNew>=1 && dNew<=4){
+        const { soon, tomorrow } = getUpcomingDeliveries();
+        showDeliveryReminderPopup([...tomorrow, ...soon]);
+      }
+      if(!box.querySelector('.od-item')) closeOverdueDeliveryPopup();
+      renderSummary();
+    };
+  });
+  box.querySelectorAll('[data-odshipped]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const jobId = btn.dataset.odshipped;
+      btn.disabled = true;
+      const ok = await setShipped(jobId, { skipConfirm:true });
+      const item = box.querySelector(`.od-item[data-jobid="${jobId}"]`);
+      if(ok && item) item.remove();
+      else btn.disabled = false;
+      if(!box.querySelector('.od-item')) closeOverdueDeliveryPopup();
+    };
+  });
+}
+function closeOverdueDeliveryPopup(){
+  const m = $('overdueDeliveryModal');
   if(m) m.style.display = 'none';
 }
 
@@ -4788,11 +4970,13 @@ setInterval(checkEmailReminders, 5*60000);
   window.rejectDelete = rejectDelete;
   window.saveManualSales = saveManualSales;
   window.openManualSalesModal = openManualSalesModal;
+  window.reloadManualSalesModal = reloadManualSalesModal;
   window.showSellerBreakdown = showSellerBreakdown;
   window.showPeriodBreakdown = showPeriodBreakdown;
   window.showGroupBreakdown = showGroupBreakdown;
   window.closeBreakdownModal = closeBreakdownModal;
   window.closeDeliveryReminderPopup = closeDeliveryReminderPopup;
+  window.closeOverdueDeliveryPopup = closeOverdueDeliveryPopup;
   window.approveLeadDelete = approveLeadDelete;
   window.rejectLeadDelete = rejectLeadDelete;
   window.clearAutoSalesForSelectedMonth = clearAutoSalesForSelectedMonth;

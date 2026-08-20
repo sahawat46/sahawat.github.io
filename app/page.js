@@ -221,6 +221,17 @@ export default function Home() {
   </div>
 </div>
 
+{/*  ป๊อปอัพเตือนงานที่เลยกำหนดส่งแล้ว ตอน login (พื้นหลังแดง แยกจากงานใกล้ส่ง) */}
+<div id="overdueDeliveryModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(43,37,32,0.6)","zIndex":"310","alignItems":"center","justifyContent":"center","padding":"16px"}}>
+  <div className="overdue-box">
+    <div className="od-icon">⏰</div>
+    <h3>งานเลยกำหนดส่งแล้ว</h3>
+    <p>งานเหล่านี้เลยวันจัดส่งมาแล้ว แต่ยังไม่ได้ติ๊ก &ldquo;ส่งแล้ว&rdquo; — แก้ไขวันจัดส่งใหม่ หรือติ๊กว่าส่งแล้วได้เลย</p>
+    <div id="overdueDeliveryList"></div>
+    <button className="btn ghost" style={{"width":"100%","marginTop":"10px"}} onClick={() => { if(window.closeOverdueDeliveryPopup) window.closeOverdueDeliveryPopup(); }}>ปิด (เตือนอีกครั้งพรุ่งนี้)</button>
+  </div>
+</div>
+
 {/*  ข้อ 7: ป๊อปอัพดูรายละเอียดย่อยของยอดขายรวม  */}
 <div id="breakdownModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(0,0,0,.55)","zIndex":"306","alignItems":"center","justifyContent":"center","padding":"16px"}} onClick={(e) => { if(e.target.id === "breakdownModal" && window.closeBreakdownModal) window.closeBreakdownModal(); }}>
   <div style={{"background":"#fff","borderRadius":"14px","padding":"22px 24px","maxWidth":"680px","width":"100%","maxHeight":"85vh","overflowY":"auto","boxShadow":"0 12px 30px rgba(0,0,0,.3)"}}>

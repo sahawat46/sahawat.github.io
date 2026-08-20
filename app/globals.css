@@ -231,6 +231,22 @@
   .dr-name{font-weight:600;font-size:13.5px;color:#2B2520;}
   .dr-meta{font-size:11.5px;color:#8A5A20;margin-top:2px;}
 
+  /* ===== ป๊อปอัพงานเลยกำหนดส่ง (สีแดง แยกจากงานใกล้ส่ง) ===== */
+  .overdue-box{
+    background:#FDEDEA;border-top:6px solid #C0392B;border-radius:14px;
+    max-width:460px;width:100%;padding:22px;box-shadow:0 12px 30px rgba(0,0,0,0.3);
+    max-height:85vh;overflow-y:auto;
+  }
+  .overdue-box .od-icon{font-size:32px;margin-bottom:6px;text-align:center;}
+  .overdue-box h3{font-family:'Kanit';font-size:16.5px;margin:0 0 6px;color:#7B241C;text-align:center;}
+  .overdue-box p{font-size:12.5px;color:#943126;margin:0 0 14px;text-align:center;}
+  .od-item{padding:10px 12px;background:#fff;border:1px solid #F1948A;border-radius:9px;margin-bottom:10px;}
+  .od-name{font-weight:600;font-size:13.5px;color:#2B2520;}
+  .od-meta{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .od-days{display:inline-block;background:#C0392B;color:#fff;font-weight:700;font-size:11px;padding:2px 9px;border-radius:20px;margin-top:6px;}
+  .od-actions{display:flex;gap:6px;align-items:center;margin-top:9px;flex-wrap:wrap;}
+  .od-actions input[type=date]{flex:1;min-width:120px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;}
+
   /* ===== Table overview ===== */
   .table-wrap{
     background:var(--white);border:1px solid var(--line);border-radius:12px;
