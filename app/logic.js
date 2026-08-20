@@ -2853,7 +2853,7 @@ function renderTicket(j){
             <span>📅 ${formatDate(j.date)}</span>
             ${j.deliveryDate ? `<span>🚚 ส่ง ${formatDate(j.deliveryDate)}</span>` : ''}
             ${j.deliveryDate ? (j.shipped
-              ? `<span class="email-pill sent" title="${j.shippedBy?'ส่งแล้วโดย '+escapeAttr(j.shippedBy):'ส่งแล้ว'}">✓ ส่งแล้ว</span>`
+              ? `<button class="email-pill sent" data-unship="${j.id}" title="${j.shippedBy?'ส่งแล้วโดย '+escapeAttr(j.shippedBy)+' — คลิกเพื่อยกเลิก':'ส่งแล้ว — คลิกเพื่อยกเลิก'}" style="border:none;cursor:pointer;">✓ ส่งแล้ว ✕</button>`
               : `<button class="btn ghost" data-shipped="${j.id}" style="padding:2px 9px;font-size:11px;">🚚 ทำเครื่องหมายว่าส่งแล้ว</button>`) : ''}
             ${j.customerType ? `<span>🏷 ${j.customerType}</span>` : ''}
             ${j.leadId ? (()=>{ const ld=leads.find(x=>x.id===j.leadId); return ld ? `<span>🧲 Lead: ${escapeHtml(leadDisplayName(ld))}</span>` : ''; })() : ''}
@@ -3907,6 +3907,7 @@ function bindTicketEvents(){
   document.querySelectorAll('[data-uncancel]').forEach(b=>{ b.onclick = ()=>uncancelJob(b.dataset.uncancel); });
   document.querySelectorAll('[data-requeue]').forEach(b=>{ b.onclick = ()=>reQueueEmailReminder(b.dataset.requeue); });
   document.querySelectorAll('[data-shipped]').forEach(b=>{ b.onclick = ()=>setShipped(b.dataset.shipped); });
+  document.querySelectorAll('[data-unship]').forEach(b=>{ b.onclick = ()=>unsetShipped(b.dataset.unship); });
   document.querySelectorAll('[data-status]').forEach(inp=>{
     inp.onchange = async ()=>{
       const j = jobs.find(x=>x.id===inp.dataset.status);
@@ -4115,6 +4116,21 @@ async function setShipped(id, opts={}){
   await saveSingleJob(id);
   render();
   toast('🚚 บันทึกว่าส่งแล้วค่ะ');
+  return true;
+}
+
+// ยกเลิกสถานะ "ส่งแล้ว" กรณีกดพลาด — กลับไปเป็นยังไม่ได้ส่ง (ระบบจะเริ่มเตือนวันส่งงานอีกครั้งถ้ายังไม่ถึง/เลยกำหนด)
+async function unsetShipped(id){
+  const j = jobs.find(x=>x.id===id);
+  if(!j) return false;
+  if(!j.shipped) return true;
+  if(!confirm(`ยืนยันว่าจะยกเลิกสถานะ "ส่งแล้ว" ของงาน "${j.job||'ไม่มีชื่องาน'}" ใช่หรือไม่? (จะกลับไปเป็นยังไม่ได้ส่ง)`)) return false;
+  j.shipped = false;
+  j.shippedAt = null;
+  j.shippedBy = null;
+  await saveSingleJob(id);
+  render();
+  toast('↺ ยกเลิกสถานะส่งแล้ว กลับเป็นยังไม่ได้ส่งค่ะ');
   return true;
 }
 
@@ -4654,6 +4670,10 @@ async function saveFromModal(){
   if(editingId){
     const j = jobs.find(x=>x.id===editingId);
     Object.assign(j, common);
+    // แก้ไขงานเป็น "งานจริง" เองผ่านฟอร์มนี้ ถือว่ายืนยันแล้วว่าออกออเดอร์งานจริงแล้ว เคลียร์ป้ายเตือนทันที
+    if(j.awaitingRealOrder && j.type === 'งานจริง'){
+      j.awaitingRealOrder = false;
+    }
   }else{
     isNew = true;
     newJobId = "job_"+Date.now()+"_"+Math.floor(Math.random()*1000);
