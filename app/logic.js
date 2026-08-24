@@ -2092,6 +2092,12 @@ function renderLeadsView(){
     return `
       <tr style="${l.pendingDelete?'background:#FEF0D0;':''}">
         <td>${l.no}</td>
+        <td><span class="badge-type" style="${teamColor}">${escapeHtml(l.team||'-')}</span></td>
+        <td><span class="badge-type" style="background:#E4EAC9;color:var(--olive-dark);">${escapeHtml(l.channel||'-')}</span></td>
+        <td>${escapeHtml(l.lineOrFb||'-')}${l.lineUserId ? ` <span class="badge-type" title="ผูกกับ LINE userId แล้ว หาเจอแม้เปลี่ยนชื่อ/รูป" style="background:#D3F2DD;color:#1E7A44;font-size:10.5px;">🔗 LINE</span>` : ''}</td>
+        <td>${(l.phones||[]).filter(Boolean).join(", ")||'-'}</td>
+        <td class="date-cell">${l.contactDate ? formatDate(l.contactDate)+(l.contactTime?' '+l.contactTime:'') : formatDate(new Date(l.createdAt).toISOString().slice(0,10))}</td>
+        <td>${won ? '<span class="email-pill sent">✓ สำเร็จ (มีออเดอร์)</span>' : '<span class="email-pill unsent" style="animation:none;">ยังไม่มีออเดอร์</span>'}</td>
         <td>${escapeHtml(l.customerName)}${l.possibleDuplicate ? `
           <div style="margin-top:3px;">
             <span class="badge-type" style="background:#FDECEA;color:#B03A2E;font-size:10px;" title="ชื่อไลน์คล้ายกับ Lead: ${escapeAttr(l.possibleDuplicateOfName||'')} — เผื่อเป็นลูกค้าเก่าที่เคยบล็อกแล้วแอดกลับ โปรดตรวจสอบว่าซ้ำกันหรือไม่">⚠ อาจซ้ำกับ "${escapeHtml(l.possibleDuplicateOfName||'')}"</span>
@@ -2101,12 +2107,6 @@ function renderLeadsView(){
         <td>${l.clientType ? `<span class="badge-type" style="background:#EEE6F5;color:#5B2C8A;" ${l.clientType==='อื่นๆ' && l.clientTypeOther ? `title="${escapeAttr(l.clientTypeOther)}"` : ''}>${escapeHtml(l.clientType)}${l.clientType==='อื่นๆ' && l.clientTypeOther ? `: ${escapeHtml(l.clientTypeOther)}` : ''}</span>` : '-'}</td>
         <td>${escapeHtml(l.companyName||'-')}</td>
         <td>${escapeHtml(l.province||'-')}</td>
-        <td><span class="badge-type" style="${teamColor}">${escapeHtml(l.team||'-')}</span></td>
-        <td><span class="badge-type" style="background:#E4EAC9;color:var(--olive-dark);">${escapeHtml(l.channel||'-')}</span></td>
-        <td>${escapeHtml(l.lineOrFb||'-')}${l.lineUserId ? ` <span class="badge-type" title="ผูกกับ LINE userId แล้ว หาเจอแม้เปลี่ยนชื่อ/รูป" style="background:#D3F2DD;color:#1E7A44;font-size:10.5px;">🔗 LINE</span>` : ''}</td>
-        <td>${(l.phones||[]).filter(Boolean).join(", ")||'-'}</td>
-        <td class="date-cell">${l.contactDate ? formatDate(l.contactDate)+(l.contactTime?' '+l.contactTime:'') : formatDate(new Date(l.createdAt).toISOString().slice(0,10))}</td>
-        <td>${won ? '<span class="email-pill sent">✓ สำเร็จ (มีออเดอร์)</span>' : '<span class="email-pill unsent" style="animation:none;">ยังไม่มีออเดอร์</span>'}</td>
         <td>
           ${l.pendingDelete ? `
             <div style="font-size:11px;color:#7A5605;font-weight:700;margin-bottom:4px;white-space:nowrap;">🗑 ${escapeHtml(l.pendingDeleteBy||'?')} ขอลบ</div>
@@ -2279,7 +2279,7 @@ function renderLeadsView(){
       <div class="table-wrap" style="max-height:60vh;">
         <table class="ov-table">
           <thead><tr>
-            <th>#</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>ประเภท</th><th>บริษัท</th><th>จังหวัด</th><th>ฝ่ายรับผิดชอบ</th><th>ช่องทาง</th><th>ไลน์/FB</th><th>เบอร์โทร</th><th>วันที่/เวลาทักมา</th><th>สถานะ</th><th>จัดการ</th>
+            <th>#</th><th>ฝ่ายรับผิดชอบ</th><th>ช่องทาง</th><th>ไลน์/FB</th><th>เบอร์โทร</th><th>วันที่/เวลาทักมา</th><th>สถานะ</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>ประเภท</th><th>บริษัท</th><th>จังหวัด</th><th>จัดการ</th>
           </tr></thead>
           <tbody>${leadRows || '<tr><td colspan="13" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มี Lead — กด "เพิ่ม Lead ใหม่" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
         </table>
