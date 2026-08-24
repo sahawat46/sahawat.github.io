@@ -339,6 +339,8 @@
   }
   .ticket.type-เธ•เธฑเธงเธญเธขเนเธฒเธ::before{background:var(--amber);}
   .ticket.type-เธเธฒเธเธเธฃเธดเธ::before{background:var(--green);}
+  .ticket.outsourced{background:#F5F0FA;border-color:#C9A8DE;}
+  .ticket.outsourced::before{background:#8E44AD;}
   .ticket-head{
     display:flex;justify-content:space-between;align-items:flex-start;
     padding:14px 16px 10px 18px;gap:10px;flex-wrap:wrap;

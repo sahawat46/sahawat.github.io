@@ -2837,7 +2837,7 @@ function renderTicket(j){
   const sc = personColor(j.seller);
 
   return `
-    <div class="ticket type-${j.type} ${overdue?'is-overdue':''} ${done?'is-done':''} ${j.cancelled?'is-cancelled':''}">
+    <div class="ticket type-${j.type} ${overdue?'is-overdue':''} ${done?'is-done':''} ${j.cancelled?'is-cancelled':''} ${j.outsourced?'outsourced':''}">
       ${j.cancelled?'<div style="background:#F0E0E0;color:var(--stamp-red);font-size:12.5px;font-weight:700;padding:6px 14px;">❌ งานนี้ถูกยกเลิกแล้ว</div>':''}
       ${j.pendingDelete?`<div style="background:#FEF0D0;color:#7A5605;font-size:12px;font-weight:700;padding:6px 14px;display:flex;align-items:center;gap:8px;">
         🗑 ${escapeHtml(j.pendingDeleteBy||'?')} ขออนุมัติลบงานนี้
@@ -2874,6 +2874,13 @@ function renderTicket(j){
       <div class="ticket-status-line" style="background:${sc.bg}40;border-radius:8px;margin:0 18px 10px;padding:8px 10px;">
         <span class="lab">สถานะ:</span>
         <input class="status-input" data-status="${j.id}" value="${escapeAttr(j.status||'')}" placeholder="พิมพ์สถานะอัพเดต..." style="color:${sc.text}">
+      </div>
+      <div class="outsource-line" style="margin:0 18px 10px;padding:8px 10px;border-radius:8px;background:#F1E9F7;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;font-weight:600;color:#5B2C8A;white-space:nowrap;">
+          <input type="checkbox" data-outsource="${j.id}" ${j.outsourced?'checked':''} style="width:16px;height:16px;cursor:pointer;">
+          🏭 ส่งซับพลายเออร์นอกผลิต
+        </label>
+        <input type="text" data-suppliername="${j.id}" value="${escapeAttr(j.supplierName||'')}" placeholder="ชื่อซับพลายเออร์..." style="flex:1;min-width:140px;padding:4px 8px;border:1px solid #D2B4DE;border-radius:6px;font-size:12.5px;${j.outsourced?'':'display:none;'}">
       </div>
       <div class="stepper">${stepsHtml}</div>
     </div>
@@ -3908,6 +3915,29 @@ function bindTicketEvents(){
   document.querySelectorAll('[data-requeue]').forEach(b=>{ b.onclick = ()=>reQueueEmailReminder(b.dataset.requeue); });
   document.querySelectorAll('[data-shipped]').forEach(b=>{ b.onclick = ()=>setShipped(b.dataset.shipped); });
   document.querySelectorAll('[data-unship]').forEach(b=>{ b.onclick = ()=>unsetShipped(b.dataset.unship); });
+  document.querySelectorAll('[data-outsource]').forEach(cb=>{
+    cb.onchange = async ()=>{
+      const j = jobs.find(x=>x.id===cb.dataset.outsource);
+      if(!j) return;
+      if(cb.checked && !confirm('ทำเครื่องหมายว่าส่งซับพลายเออร์นอกผลิตใช่หรือไม่? ระบบจะติ๊กทุกขั้นตอนภายในเป็น "N/A" ให้อัตโนมัติ เพราะไม่ต้องติดตามขั้นตอนผลิตภายในอีก')){
+        cb.checked = false;
+        return;
+      }
+      j.outsourced = cb.checked;
+      if(cb.checked){
+        STAGES.forEach(s=>{ j.stages[s.key] = { done:true, by:'N/A', at: Date.now() }; });
+      }
+      await saveSingleJob(j.id);
+      render();
+      toast(cb.checked ? '🏭 ทำเครื่องหมายว่าส่งซับพลายเออร์นอกผลิตแล้วค่ะ' : 'ยกเลิกส่งซับพลายเออร์นอกผลิตแล้วค่ะ');
+    };
+  });
+  document.querySelectorAll('[data-suppliername]').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const j = jobs.find(x=>x.id===inp.dataset.suppliername);
+      if(j){ j.supplierName = inp.value.trim(); await saveSingleJob(j.id); toast('บันทึกชื่อซับพลายเออร์แล้วค่ะ'); }
+    };
+  });
   document.querySelectorAll('[data-status]').forEach(inp=>{
     inp.onchange = async ()=>{
       const j = jobs.find(x=>x.id===inp.dataset.status);
