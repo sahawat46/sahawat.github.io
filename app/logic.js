@@ -1678,12 +1678,16 @@ function getProductItems(){
 
 function populateSellerSelect(){
   const cur = $("f_seller").value;
-  const sellers = getSellerNames();
+  // เอาชื่อคนที่ล็อกอินอยู่ขึ้นบนสุดของ dropdown ตอนเพิ่ม/แก้ไขงาน เพื่อให้เลือกตัวเองได้เร็วที่สุด
+  const putSelfFirst = (names)=> currentUser?.name && names.includes(currentUser.name)
+    ? [currentUser.name, ...names.filter(n=>n!==currentUser.name)]
+    : names;
+  const sellers = putSelfFirst(getSellerNames().filter(Boolean));
   $("f_seller").innerHTML = sellers.map(s=>`<option value="${s}">${s}</option>`).join("");
   if(cur && sellers.includes(cur)) $("f_seller").value = cur;
   // populate manager dropdown
-  const mgrs = users.filter(u=>u.role==='manager'&&u.active!==false).map(u=>u.name);
-  const mgrList = mgrs.length ? mgrs : DEFAULT_MANAGERS;
+  const mgrs = users.filter(u=>u.role==='manager'&&u.active!==false).map(u=>u.name).filter(Boolean);
+  const mgrList = putSelfFirst(mgrs.length ? mgrs : DEFAULT_MANAGERS);
   const mgrEl = $("f_manager");
   if(mgrEl){
     const curMgr = mgrEl.value;
