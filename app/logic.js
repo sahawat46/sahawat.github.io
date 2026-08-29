@@ -1326,6 +1326,7 @@ async function tryLogin(){
 
   errEl.textContent = "";
   currentUser = u;
+  populateSellerSelect(); // เอาชื่อตัวเองขึ้นบนสุดของ dropdown เซลล์/เมเนเจอร์ ตอนล็อกอินสำเร็จ
   try{ localStorage.setItem('sb_session', JSON.stringify({username:u.username})); }catch(e){}
   try{ await window.storage.set("session", JSON.stringify({username:u.username}), false); }catch(e){}
   $("loginOverlay").classList.remove("open");
@@ -1372,6 +1373,7 @@ async function attemptAutoLogin(){
       const u = findUserByUsername(sess.username);
       if(u && u.active!==false){
         currentUser = u;
+        populateSellerSelect(); // เอาชื่อตัวเองขึ้นบนสุดของ dropdown เซลล์/เมเนเจอร์ ตอน auto-login
         $("loginOverlay").style.display = "none";
         renderTopbarUser();
         return true;
