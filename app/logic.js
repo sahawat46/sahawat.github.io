@@ -4324,7 +4324,7 @@ async function openModal(id){
     $("f_leadId").value = j.leadId || "";
     setLeadField(j.leadId || "");
   }else{
-    $("f_seller").value = SELLERS[0];
+    $("f_seller").value = currentUser?.name || SELLERS[0];
     if($("f_manager")){ const defMgr = (currentUser?.role==="manager" ? currentUser.name : (users.find(u=>u.role==="manager"&&u.active!==false)||{}).name) || DEFAULT_MANAGERS[0]; $("f_manager").value = defMgr; }
     $("f_date").value = new Date().toISOString().slice(0,10);
     $("f_quote").value = "";
