@@ -247,6 +247,22 @@
   .od-actions{display:flex;gap:6px;align-items:center;margin-top:9px;flex-wrap:wrap;}
   .od-actions input[type=date]{flex:1;min-width:120px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;}
 
+  /* ===== ป๊อปอัพเตือนวันนัดติดต่อลูกค้า Outbound กลับ (สีฟ้าอมเขียว แยกจากงานเลยกำหนดส่ง) ===== */
+  .outbound-box{
+    background:#EAF6F5;border-top:6px solid #17A2A2;border-radius:14px;
+    max-width:460px;width:100%;padding:22px;box-shadow:0 12px 30px rgba(0,0,0,0.3);
+    max-height:85vh;overflow-y:auto;
+  }
+  .outbound-box .ob-icon{font-size:32px;margin-bottom:6px;text-align:center;}
+  .outbound-box h3{font-family:'Kanit';font-size:16.5px;margin:0 0 6px;color:#0E6E6E;text-align:center;}
+  .outbound-box p{font-size:12.5px;color:#0E6E6E;margin:0 0 14px;text-align:center;}
+  .ob-item{padding:10px 12px;background:#fff;border:1px solid #A8DEDE;border-radius:9px;margin-bottom:10px;}
+  .ob-name{font-weight:600;font-size:13.5px;color:#2B2520;}
+  .ob-meta{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .ob-date{display:inline-block;background:#17A2A2;color:#fff;font-weight:700;font-size:11px;padding:2px 9px;border-radius:20px;margin-top:6px;}
+  .ob-actions{display:flex;gap:6px;align-items:center;margin-top:9px;flex-wrap:wrap;}
+  .ob-actions input[type=date]{flex:1;min-width:120px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;}
+
   /* ===== Table overview ===== */
   .table-wrap{
     background:var(--white);border:1px solid var(--line);border-radius:12px;

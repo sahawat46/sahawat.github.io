@@ -137,6 +137,9 @@ let pendingEmailJobId = null;
 let emailQueue = []; // คิวงานที่ต้องเด้งเตือนส่งอีเมล
 let leads = [];
 let editingLeadId = null;
+let outboundContacts = []; // ลูกค้าที่เซลล์ติดต่อไปเอง (Outbound) — ยังไม่นับเป็น Lead จนกว่าจะตอบกลับ/แปลงเป็น Lead
+let leadModalMode = 'lead'; // 'lead' | 'outbound' — ใช้ฟอร์มเดียวกัน สลับโหมดตอนเปิด modal
+let leadsSubView = 'leads'; // 'leads' | 'outbound' — สลับมุมมองในหน้า Lead
 let leadPeriod = 'month'; // day | month | quarter | year
 let leadDailyShowAllMonths = false; // สรุป Lead ประจำวัน — false = โชว์เฉพาะเดือนปัจจุบัน, true = โชว์ทุกเดือน
 let users = [];
@@ -712,6 +715,31 @@ async function saveExpenses(){
       await window.storage.set("expenses", JSON.stringify(expenses), true);
     }
   } catch(e){ console.error('saveExpenses',e); throw e; }
+}
+
+// ── รายชื่อลูกค้าที่เซลล์ติดต่อไปเอง (Outbound) — ยังไม่นับเป็น Lead จนกว่าจะแปลง ────
+async function loadOutboundContacts(){
+  try {
+    if(_useSupabase){
+      const { data, error } = await window._sb.from('app_kv').select('value').eq('key','outboundContacts').maybeSingle();
+      if(error) throw error;
+      outboundContacts = data?.value ? JSON.parse(JSON.stringify(data.value)) : [];
+    } else {
+      const res = await window.storage.get("outboundContacts", true);
+      outboundContacts = res && res.value ? JSON.parse(res.value) : [];
+    }
+  } catch(e){ console.error('loadOutboundContacts',e); outboundContacts=[]; }
+}
+
+async function saveOutboundContacts(){
+  try {
+    if(_useSupabase){
+      const { error } = await window._sb.from('app_kv').upsert({ key:'outboundContacts', value:outboundContacts, updated_at:new Date().toISOString() });
+      if(error){ console.error('saveOutboundContacts error:', error); throw error; }
+    } else {
+      await window.storage.set("outboundContacts", JSON.stringify(outboundContacts), true);
+    }
+  } catch(e){ console.error('saveOutboundContacts',e); toast('บันทึกรายชื่อที่ติดต่อไปไม่สำเร็จ'); }
 }
 
 function getExpMonth(year, month){
@@ -1336,6 +1364,7 @@ async function tryLogin(){
   render();
   setTimeout(checkDeliveryReminders, 500); // ข้อ 2: เตือนวันส่งงานตอน login
   setTimeout(checkOverdueDeliveries, 500); // เตือนงานเลยกำหนดส่งตอน login
+  setTimeout(checkOutboundFollowUps, 500); // เตือนวันนัดติดต่อลูกค้า Outbound กลับตอน login
 }
 
 function doLogout(){
@@ -1789,11 +1818,18 @@ function renderLeadSuggestions(query, showAll=false){
 }
 
 // --- Lead modal open/close/save ---
-function openLeadModal(id){
+function openLeadModal(id, mode='lead'){
+  leadModalMode = mode;
   editingLeadId = id || null;
-  $("leadModalTitle").textContent = id ? "แก้ไข Lead" : "เพิ่ม Lead ใหม่";
+  const isOutbound = mode === 'outbound';
+  const sourceArr = isOutbound ? outboundContacts : leads;
+  $("leadModalTitle").textContent = id
+    ? (isOutbound ? "แก้ไขรายชื่อที่ติดต่อไป" : "แก้ไข Lead")
+    : (isOutbound ? "เพิ่มรายชื่อที่ติดต่อไป (Outbound)" : "เพิ่ม Lead ใหม่");
+  if($("outboundFieldsWrap")) $("outboundFieldsWrap").style.display = isOutbound ? 'flex' : 'none';
+  if($("leadSaveBtn")) $("leadSaveBtn").textContent = isOutbound ? 'บันทึกรายชื่อ' : 'บันทึก Lead';
   if(id){
-    const l = leads.find(x=>x.id===id);
+    const l = sourceArr.find(x=>x.id===id);
     $("l_customerName").value = l.customerName||"";
     $("l_companyName").value = l.companyName||"";
     $("l_nickname").value = l.nickname||"";
@@ -1817,6 +1853,10 @@ function openLeadModal(id){
     $("l_shipAddress").value = l.shipAddress||"";
     $("l_billMode").value = l.billMode || "company";
     $("l_billAddress").value = l.billAddress||"";
+    if(isOutbound){
+      if($("l_outboundStatus")) $("l_outboundStatus").value = l.status || "";
+      if($("l_followUpDate")) $("l_followUpDate").value = l.followUpDate || "";
+    }
   }else{
     ["l_customerName","l_companyName","l_nickname","l_lineOrFb","l_address","l_taxId","l_phone1","l_phone2","l_phone3","l_phone4","l_shipAddress","l_billAddress"].forEach(id=>{ $(id).value=""; });
     $("l_channel").value = LEAD_CHANNELS[0];
@@ -1831,12 +1871,17 @@ function openLeadModal(id){
     if($("l_clientTypeOtherWrap")) $("l_clientTypeOtherWrap").style.display = 'none';
     $("l_shipMode").value = "company";
     $("l_billMode").value = "company";
+    if(isOutbound){
+      if($("l_outboundStatus")) $("l_outboundStatus").value = "";
+      if($("l_followUpDate")) $("l_followUpDate").value = "";
+    }
   }
   $("leadModalOverlay").classList.add("open");
 }
 function closeLeadModal(){
   $("leadModalOverlay").classList.remove("open");
   editingLeadId = null;
+  leadModalMode = 'lead';
 }
 
 async function saveLeadFromModal(){
@@ -1863,6 +1908,30 @@ async function saveLeadFromModal(){
     billMode: $("l_billMode").value,
     billAddress: $("l_billAddress").value.trim(),
   };
+
+  if(leadModalMode === 'outbound'){
+    common.status = $("l_outboundStatus") ? $("l_outboundStatus").value.trim() : "";
+    common.followUpDate = $("l_followUpDate") ? $("l_followUpDate").value : "";
+    if(editingLeadId){
+      const c = outboundContacts.find(x=>x.id===editingLeadId);
+      if(c) Object.assign(c, common);
+    }else{
+      outboundContacts.push({
+        id: "outb_"+Date.now()+"_"+Math.floor(Math.random()*1000),
+        no: outboundContacts.length ? Math.max(...outboundContacts.map(c=>c.no||0))+1 : 1,
+        ...common,
+        converted: false,
+        convertedLeadId: null,
+        createdAt: Date.now()
+      });
+    }
+    await saveOutboundContacts();
+    closeLeadModal();
+    if(currentView==='leads' && leadsSubView==='outbound') renderList();
+    toast("บันทึกรายชื่อที่ติดต่อไปแล้วค่ะ");
+    return;
+  }
+
   if(editingLeadId){
     const l = leads.find(x=>x.id===editingLeadId);
     Object.assign(l, common);
@@ -2042,6 +2111,7 @@ function renderLeadGeoSection(){
 }
 
 function renderLeadsView(){
+  if(leadsSubView === 'outbound') return renderOutboundContactsView();
   // ข้อ 11: date range filter สำหรับ Lead
   const leadDateFrom = $("leadDateFrom") ? $("leadDateFrom").value : (window._leadDateFrom||"");
   const leadDateTo   = $("leadDateTo")   ? $("leadDateTo").value   : (window._leadDateTo||"");
@@ -2241,7 +2311,12 @@ function renderLeadsView(){
   const leadDateFromVal = leadDateFrom||"";
   const leadDateToVal   = leadDateTo||"";
 
+  const outboundPendingCount = outboundContacts.filter(c=>!c.converted).length;
   return `
+    <div class="summary-controls" style="flex-wrap:wrap;gap:8px;">
+      <button class="vt-btn active" id="toggleToLeadsBtn2">📋 รายการ Lead</button>
+      <button class="vt-btn" id="toggleToOutboundBtn">🎯 รายชื่อติดต่อ (Outbound)${outboundPendingCount ? ` (${outboundPendingCount})` : ''}</button>
+    </div>
     <div class="summary-controls" style="flex-wrap:wrap;gap:10px;">
       <select class="filt" id="leadPeriodSel">
         <option value="day" ${leadPeriod==='day'?'selected':''}>รายวัน</option>
@@ -2332,9 +2407,167 @@ function renderLeadsView(){
   `;
 }
 
+// รายชื่อลูกค้าที่เซลล์ติดต่อไปเอง (Outbound) — ยังไม่นับเป็น Lead จนกว่าจะแปลง
+function renderOutboundContactsView(){
+  const active = outboundContacts.filter(c=>!c.converted);
+  const converted = outboundContacts.filter(c=>c.converted);
+  const today = todayKey();
+  const rows = active.slice().sort((a,b)=>b.createdAt-a.createdAt).map(c=>{
+    const overdue = c.followUpDate && c.followUpDate < today;
+    return `
+      <tr style="${overdue?'background:#FDEDEA;':''}">
+        <td>${c.no}</td>
+        <td>${escapeHtml(c.customerName||'-')}</td>
+        <td>${c.nickname ? escapeHtml(c.nickname) : '-'}</td>
+        <td>${escapeHtml(c.companyName||'-')}</td>
+        <td><span class="badge-type" style="background:#E4EAC9;color:var(--olive-dark);">${escapeHtml(c.channel||'-')}</span></td>
+        <td>${escapeHtml((c.phones||[]).filter(Boolean).join(', ')||'-')}</td>
+        <td class="date-cell">${c.contactDate ? formatDate(c.contactDate) : '-'}</td>
+        <td>${escapeHtml(c.status||'-')}</td>
+        <td class="date-cell" style="${overdue?'color:var(--stamp-red);font-weight:700;':''}">${c.followUpDate ? formatDate(c.followUpDate) : '-'}${overdue?' ⚠':''}</td>
+        <td style="white-space:nowrap;">
+          <button class="row-del-btn" data-outboundedit="${c.id}" title="แก้ไข">✎</button>
+          <button class="btn" style="padding:3px 8px;font-size:11px;background:var(--khaki-green);color:#fff;" data-outboundconvert="${c.id}">✓ แปลงเป็น Lead</button>
+          <button class="row-del-btn" data-outbounddel="${c.id}" title="ลบ">🗑</button>
+        </td>
+      </tr>`;
+  }).join("");
+
+  return `
+    <div class="summary-controls" style="flex-wrap:wrap;gap:8px;">
+      <button class="vt-btn" id="toggleToLeadsBtn2">📋 รายการ Lead</button>
+      <button class="vt-btn active" id="toggleToOutboundBtn">🎯 รายชื่อติดต่อ (Outbound)</button>
+    </div>
+    <div class="summary-controls" style="flex-wrap:wrap;gap:10px;">
+      <button class="btn primary" id="addOutboundBtn">➕ เพิ่มรายชื่อติดต่อ Outbound</button>
+    </div>
+    <div class="summary-row">
+      <div class="summary-box"><div class="num">${active.length}</div><div class="lbl">ยังไม่ตอบกลับ</div></div>
+      <div class="summary-box"><div class="num" style="color:var(--khaki-green)">${converted.length}</div><div class="lbl">แปลงเป็น Lead แล้ว</div></div>
+    </div>
+    <div class="summary-panel">
+      <h3>🎯 รายชื่อลูกค้าที่เซลล์ติดต่อไปเอง (ยังไม่เป็น Lead)</h3>
+      <div class="table-wrap" style="max-height:65vh;">
+        <table class="ov-table">
+          <thead><tr>
+            <th>#</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>บริษัท</th><th>ช่องทาง</th><th>เบอร์โทร</th><th>วันที่ติดต่อ</th><th>สถานะ</th><th>นัดติดต่อกลับ</th><th>จัดการ</th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มีรายชื่อที่ติดต่อไป — กด "เพิ่มรายชื่อติดต่อ Outbound" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function convertOutboundToLead(id){
+  const c = outboundContacts.find(x=>x.id===id);
+  if(!c) return;
+  if(!confirm(`ยืนยันแปลง "${c.customerName||'รายชื่อนี้'}" เป็น Lead ใช่หรือไม่?`)) return;
+  const { id:_oldId, no:_oldNo, status:_status, followUpDate:_fud, converted:_c, convertedLeadId:_cli, createdAt:_ca, ...leadFields } = c;
+  const newLeadId = "lead_"+Date.now()+"_"+Math.floor(Math.random()*1000);
+  leads.push({
+    id: newLeadId,
+    no: leads.length ? Math.max(...leads.map(l=>l.no||0))+1 : 1,
+    ...leadFields,
+    createdAt: Date.now()
+  });
+  await saveLeads();
+  c.converted = true;
+  c.convertedLeadId = newLeadId;
+  c.convertedAt = Date.now();
+  await saveOutboundContacts();
+  renderList();
+  toast(`✓ แปลง "${c.customerName||'รายชื่อนี้'}" เป็น Lead แล้วค่ะ`);
+}
+
+async function deleteOutboundContact(id){
+  const c = outboundContacts.find(x=>x.id===id);
+  if(!c) return;
+  if(!confirm(`ยืนยันลบ "${c.customerName||'รายชื่อนี้'}" ออกจากรายชื่อติดต่อ Outbound ใช่หรือไม่?`)) return;
+  outboundContacts = outboundContacts.filter(x=>x.id!==id);
+  await saveOutboundContacts();
+  renderList();
+  toast("ลบรายชื่อแล้วค่ะ");
+}
+
+function bindOutboundEvents(){
+  const t1 = $("toggleToLeadsBtn2"), t2 = $("toggleToOutboundBtn"), addBtn = $("addOutboundBtn");
+  if(t1) t1.onclick = ()=>{ leadsSubView = 'leads'; renderList(); };
+  if(t2) t2.onclick = ()=>{ leadsSubView = 'outbound'; renderList(); };
+  if(addBtn) addBtn.onclick = ()=>openLeadModal(null, 'outbound');
+  document.querySelectorAll('[data-outboundedit]').forEach(b=>{ b.onclick = ()=>openLeadModal(b.dataset.outboundedit, 'outbound'); });
+  document.querySelectorAll('[data-outboundconvert]').forEach(b=>{ b.onclick = ()=>convertOutboundToLead(b.dataset.outboundconvert); });
+  document.querySelectorAll('[data-outbounddel]').forEach(b=>{ b.onclick = ()=>deleteOutboundContact(b.dataset.outbounddel); });
+}
+
+// ป๊อปอัพเตือนวันนัดติดต่อลูกค้า Outbound กลับ ตอน login (เตือนแค่ครั้งแรกของวัน)
+function checkOutboundFollowUps(){
+  if(!currentUser) return;
+  const today = todayKey();
+  const loginKey = `outboundFollowUpAlerted_${currentUser.username}_${today}`;
+  if(localStorage.getItem(loginKey)) return;
+  localStorage.setItem(loginKey, '1');
+  const due = outboundContacts.filter(c=>!c.converted && c.followUpDate && c.followUpDate<=today);
+  if(!due.length) return;
+  showOutboundFollowUpPopup(due);
+}
+
+function showOutboundFollowUpPopup(list){
+  const box = $('outboundFollowUpList');
+  if(!box) return;
+  const today = todayKey();
+  box.innerHTML = list.map(c=>{
+    const daysLate = c.followUpDate < today ? Math.round((new Date(today+"T00:00:00") - new Date(c.followUpDate+"T00:00:00"))/86400000) : 0;
+    return `
+    <div class="ob-item" data-contactid="${c.id}">
+      <div class="ob-name">${escapeHtml(c.customerName||'ไม่มีชื่อ')}${c.companyName ? ' · '+escapeHtml(c.companyName) : ''}</div>
+      <div class="ob-meta">${escapeHtml(c.channel||'-')}${c.status ? ' · '+escapeHtml(c.status) : ''}</div>
+      <div class="ob-date">${daysLate>0 ? `⚠ เลยนัดมาแล้ว ${daysLate} วัน` : '📅 ถึงกำหนดวันนี้'} (${formatDate(c.followUpDate)})</div>
+      <div class="ob-actions">
+        <input type="date" data-obdate="${c.id}" value="${c.followUpDate}">
+        <button class="btn ghost" style="padding:5px 10px;font-size:12px;" data-obsnooze="${c.id}">📅 เลื่อนนัด</button>
+        <button class="btn" style="padding:5px 10px;font-size:12px;background:var(--khaki-green);color:#fff;" data-obconvert="${c.id}">✓ แปลงเป็น Lead</button>
+      </div>
+    </div>`;
+  }).join('');
+  $('outboundFollowUpModal').style.display = 'flex';
+  box.querySelectorAll('[data-obsnooze]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.dataset.obsnooze;
+      const dateEl = box.querySelector(`[data-obdate="${id}"]`);
+      const newDate = dateEl?.value;
+      if(!newDate){ toast('กรุณาเลือกวันที่ใหม่ก่อนค่ะ'); return; }
+      const c = outboundContacts.find(x=>x.id===id);
+      if(!c) return;
+      c.followUpDate = newDate;
+      await saveOutboundContacts();
+      const item = box.querySelector(`.ob-item[data-contactid="${id}"]`);
+      if(item) item.remove();
+      toast('📅 เลื่อนวันนัดติดต่อกลับแล้วค่ะ');
+      if(!box.querySelector('.ob-item')) closeOutboundFollowUpPopup();
+      if(currentView==='leads') renderList();
+    };
+  });
+  box.querySelectorAll('[data-obconvert]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.dataset.obconvert;
+      await convertOutboundToLead(id);
+      const item = box.querySelector(`.ob-item[data-contactid="${id}"]`);
+      if(item) item.remove();
+      if(!box.querySelector('.ob-item')) closeOutboundFollowUpPopup();
+    };
+  });
+}
+function closeOutboundFollowUpPopup(){
+  const m = $('outboundFollowUpModal');
+  if(m) m.style.display = 'none';
+}
+
 function bindLeadEvents(){
   document.querySelectorAll('[data-leadedit]').forEach(b=>{ b.onclick = ()=>openLeadModal(b.dataset.leadedit); });
   document.querySelectorAll('[data-leaddel]').forEach(b=>{ b.onclick = ()=>deleteLead(b.dataset.leaddel); });
+  const toggleToOutbound = $("toggleToOutboundBtn");
+  if(toggleToOutbound) toggleToOutbound.onclick = ()=>{ leadsSubView = 'outbound'; renderList(); };
   const toggleDailyMonths = $("toggleLeadDailyMonths");
   if(toggleDailyMonths) toggleDailyMonths.onclick = ()=>{ leadDailyShowAllMonths = !leadDailyShowAllMonths; renderList(); };
   const p = $("leadPeriodSel");
@@ -2726,7 +2959,7 @@ function renderList(){
   }
   if(currentView === 'leads'){
     el.innerHTML = renderLeadsView();
-    bindLeadEvents();
+    if(leadsSubView === 'outbound') bindOutboundEvents(); else bindLeadEvents();
     return;
   }
   const list = getFiltered();
@@ -5014,7 +5247,9 @@ async function _bootstrapData(){
   loadLeads();
   await loadHistoricalSales();
   await loadExpenses();
+  await loadOutboundContacts();
   if(currentView==='summary') renderList();
+  setTimeout(checkOutboundFollowUps, 900); // เตือนวันนัดติดต่อลูกค้า Outbound กลับตอน login (auto-login)
 
   // ถ้าใช้ window.storage (ไม่ใช่ Supabase) → ยังคง poll ทุก 8 วินาที
   if(!_useSupabase){
@@ -5071,6 +5306,7 @@ setInterval(checkEmailReminders, 5*60000);
   window.closeBreakdownModal = closeBreakdownModal;
   window.closeDeliveryReminderPopup = closeDeliveryReminderPopup;
   window.closeOverdueDeliveryPopup = closeOverdueDeliveryPopup;
+  window.closeOutboundFollowUpPopup = closeOutboundFollowUpPopup;
   window.approveLeadDelete = approveLeadDelete;
   window.rejectLeadDelete = rejectLeadDelete;
   window.clearAutoSalesForSelectedMonth = clearAutoSalesForSelectedMonth;

@@ -232,6 +232,17 @@ export default function Home() {
   </div>
 </div>
 
+{/*  ป๊อปอัพเตือนวันนัดติดต่อลูกค้า Outbound กลับ ตอน login */}
+<div id="outboundFollowUpModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(43,37,32,0.6)","zIndex":"310","alignItems":"center","justifyContent":"center","padding":"16px"}}>
+  <div className="outbound-box">
+    <div className="ob-icon">🎯</div>
+    <h3>ถึงกำหนดติดต่อลูกค้ากลับ</h3>
+    <p>รายชื่อ Outbound เหล่านี้ถึงกำหนดนัดติดต่อกลับแล้ว — เลื่อนนัด หรือแปลงเป็น Lead ถ้าลูกค้าตอบกลับแล้ว</p>
+    <div id="outboundFollowUpList"></div>
+    <button className="btn ghost" style={{"width":"100%","marginTop":"10px"}} onClick={() => { if(window.closeOutboundFollowUpPopup) window.closeOutboundFollowUpPopup(); }}>ปิด (เตือนอีกครั้งพรุ่งนี้)</button>
+  </div>
+</div>
+
 {/*  ข้อ 7: ป๊อปอัพดูรายละเอียดย่อยของยอดขายรวม  */}
 <div id="breakdownModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(0,0,0,.55)","zIndex":"306","alignItems":"center","justifyContent":"center","padding":"16px"}} onClick={(e) => { if(e.target.id === "breakdownModal" && window.closeBreakdownModal) window.closeBreakdownModal(); }}>
   <div style={{"background":"#fff","borderRadius":"14px","padding":"22px 24px","maxWidth":"680px","width":"100%","maxHeight":"85vh","overflowY":"auto","boxShadow":"0 12px 30px rgba(0,0,0,.3)"}}>
@@ -439,6 +450,16 @@ export default function Home() {
       <div className="field">
         <label>&nbsp;</label>
         <input type="text" id="l_billAddress" placeholder="ที่อยู่วางบิล (กรณีกรอกใหม่)" />
+      </div>
+    </div>
+    <div className="field-row" id="outboundFieldsWrap" style={{"display":"none"}}>
+      <div className="field">
+        <label>อัพเดตสถานะ</label>
+        <input type="text" id="l_outboundStatus" placeholder="เช่น ทักไปแล้ว รอตอบกลับ" />
+      </div>
+      <div className="field">
+        <label>วันที่ต้องติดต่อกลับ</label>
+        <input type="date" id="l_followUpDate" />
       </div>
     </div>
     <div className="modal-actions">
