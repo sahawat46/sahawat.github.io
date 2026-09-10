@@ -381,6 +381,7 @@ export default function Home() {
           <option value="เสื้อพนักงานร้าน">เสื้อพนักงานร้าน</option>
           <option value="โรงแรม">โรงแรม</option>
           <option value="กลุ่มกิจกรรม">กลุ่มกิจกรรม</option>
+          <option value="ติดต่อหาลูกค้าเอง (Outbound)">ติดต่อหาลูกค้าเอง (Outbound)</option>
           <option value="อื่นๆ">อื่นๆ</option>
         </select>
       </div>

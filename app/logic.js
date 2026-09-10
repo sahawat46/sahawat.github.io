@@ -2158,6 +2158,34 @@ function renderLeadsView(){
     return row;
   }).join("");
 
+  // สรุปจำนวน Lead ประจำวัน แยกตามช่องทาง (ใช้ช่วงเดือนเดียวกับตารางสรุป Lead ประจำวันด้านบน)
+  const dailyChannelMap = {};
+  filteredLeads.forEach(l=>{
+    const d = l.contactDate || new Date(l.createdAt).toISOString().slice(0,10);
+    const ch = LEAD_CHANNELS.includes(l.channel) ? l.channel : 'อื่นๆ';
+    if(!dailyChannelMap[d]) dailyChannelMap[d] = {};
+    dailyChannelMap[d][ch] = (dailyChannelMap[d][ch]||0) + 1;
+  });
+  const dailyChannelKeysShown = leadDailyShowAllMonths ? dailyKeys : dailyKeys.filter(k=>k.slice(0,7)===currentMonthKey);
+  const rowChannelTotal = (dk)=> LEAD_CHANNELS.reduce((s,ch)=>s+((dailyChannelMap[dk]||{})[ch]||0),0);
+  const dailyChannelRows = dailyChannelKeysShown.map((k,i)=>{
+    const cells = LEAD_CHANNELS.map(ch=>`<td style="text-align:right;">${(dailyChannelMap[k]||{})[ch]||0}</td>`).join('');
+    let row = `<tr><td>${formatDate(k)}</td>${cells}<td style="text-align:right;font-weight:700;">${rowChannelTotal(k)}</td></tr>`;
+    const mk = k.slice(0,7);
+    const nextMk = dailyChannelKeysShown[i+1] ? dailyChannelKeysShown[i+1].slice(0,7) : null;
+    if(mk !== nextMk){
+      const monthKeys = dailyChannelKeysShown.filter(dk=>dk.slice(0,7)===mk);
+      const mCells = LEAD_CHANNELS.map(ch=>`<td style="text-align:right;">${monthKeys.reduce((s,dk)=>s+((dailyChannelMap[dk]||{})[ch]||0),0)}</td>`).join('');
+      const mTotal = monthKeys.reduce((s,dk)=>s+rowChannelTotal(dk),0);
+      const [y,m] = mk.split("-");
+      const mLabel = `${TH_MONTH_ABBR[Number(m)-1]} ${Number(y)+543}`;
+      row += `<tr style="font-weight:700;background:#EFEADA;"><td>รวม ${mLabel}</td>${mCells}<td style="text-align:right;">${mTotal}</td></tr>`;
+    }
+    return row;
+  }).join("");
+  const channelGrandCells = LEAD_CHANNELS.map(ch=>`<td style="text-align:right;">${dailyKeys.reduce((s,dk)=>s+((dailyChannelMap[dk]||{})[ch]||0),0)}</td>`).join('');
+  const channelGrandTotal = dailyKeys.reduce((s,dk)=>s+rowChannelTotal(dk),0);
+
   // ข้อ 13: Lead analytics — ช่วงเวลาของวันที่มี Lead เข้ามากที่สุด
   const hourMap = {};
   filteredLeads.forEach(l=>{
@@ -2257,6 +2285,16 @@ function renderLeadsView(){
         <tbody>${dailyRows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">ยังไม่มีข้อมูลในเดือนนี้</td></tr>'}</tbody>
         ${dailyKeys.length ? `<tfoot><tr><td>รวมทั้งหมด (ทุกเดือน)</td><td>${total}</td><td>${success}</td><td>${total-success}</td></tr></tfoot>` : ""}
       </table>
+    </div>
+    <div class="summary-panel">
+      <h3>📊 สรุปจำนวน Lead ประจำวัน แยกตามช่องทาง</h3>
+      <div style="overflow-x:auto;">
+      <table class="rep-table">
+        <thead><tr><th>วันที่</th>${LEAD_CHANNELS.map(ch=>`<th>${escapeHtml(ch)}</th>`).join('')}<th>รวม</th></tr></thead>
+        <tbody>${dailyChannelRows || `<tr><td colspan="${LEAD_CHANNELS.length+2}" style="text-align:center;color:var(--ink-soft);">ยังไม่มีข้อมูลในเดือนนี้</td></tr>`}</tbody>
+        ${dailyKeys.length ? `<tfoot><tr><td>รวมทั้งหมด (ทุกเดือน)</td>${channelGrandCells}<td style="font-weight:700;">${channelGrandTotal}</td></tr></tfoot>` : ""}
+      </table>
+      </div>
     </div>
     <div class="summary-panel">
       <h3>🕐 ช่วงเวลาของวันที่ Lead เข้ามาก (ข้อ 13)</h3>
