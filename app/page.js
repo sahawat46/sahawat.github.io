@@ -350,7 +350,7 @@ export default function Home() {
         <label>ไลน์ / Facebook ลูกค้า</label>
         <input type="text" id="l_lineOrFb" placeholder="Line ID หรือลิงก์ Facebook" />
       </div>
-      <div className="field">
+      <div className="field" id="leadChannelFieldWrap">
         <label>ช่องทางที่ลูกค้าเจอเรา</label>
         <select id="l_channel"></select>
       </div>
@@ -392,7 +392,6 @@ export default function Home() {
           <option value="เสื้อพนักงานร้าน">เสื้อพนักงานร้าน</option>
           <option value="โรงแรม">โรงแรม</option>
           <option value="กลุ่มกิจกรรม">กลุ่มกิจกรรม</option>
-          <option value="ติดต่อหาลูกค้าเอง (Outbound)">ติดต่อหาลูกค้าเอง (Outbound)</option>
           <option value="อื่นๆ">อื่นๆ</option>
         </select>
       </div>

@@ -1827,6 +1827,7 @@ function openLeadModal(id, mode='lead'){
     ? (isOutbound ? "แก้ไขรายชื่อที่ติดต่อไป" : "แก้ไข Lead")
     : (isOutbound ? "เพิ่มรายชื่อที่ติดต่อไป (Outbound)" : "เพิ่ม Lead ใหม่");
   if($("outboundFieldsWrap")) $("outboundFieldsWrap").style.display = isOutbound ? 'flex' : 'none';
+  if($("leadChannelFieldWrap")) $("leadChannelFieldWrap").style.display = isOutbound ? 'none' : '';
   if($("leadSaveBtn")) $("leadSaveBtn").textContent = isOutbound ? 'บันทึกรายชื่อ' : 'บันทึก Lead';
   if(id){
     const l = sourceArr.find(x=>x.id===id);
@@ -1910,6 +1911,7 @@ async function saveLeadFromModal(){
   };
 
   if(leadModalMode === 'outbound'){
+    common.channel = ""; // ไม่เกี่ยวกับ Outbound เพราะเราติดต่อลูกค้าเอง ไม่ได้เจอเราผ่านช่องทางไหน
     common.status = $("l_outboundStatus") ? $("l_outboundStatus").value.trim() : "";
     common.followUpDate = $("l_followUpDate") ? $("l_followUpDate").value : "";
     if(editingLeadId){
@@ -1977,6 +1979,29 @@ async function deleteLead(id){
   } catch(e) {
     toast("ลบ Lead ไม่สำเร็จ: " + e.message);
   }
+}
+
+// ย้าย Lead ที่ลงผิด (จริงๆ เป็นแค่ลูกค้าที่เซลล์ติดต่อไปเอง ยังไม่ตอบกลับ) ไปที่รายชื่อติดต่อ Outbound
+async function moveLeadToOutbound(id){
+  const l = leads.find(x=>x.id===id);
+  if(!l) return;
+  if(!confirm(`ย้าย "${leadDisplayName(l)}" ไปที่รายชื่อติดต่อ Outbound ใช่หรือไม่? (จะลบออกจากรายการ Lead)`)) return;
+  const { id:_oldId, no:_oldNo, createdAt:_ca, _v, _by, ...contactFields } = l;
+  outboundContacts.push({
+    id: "outb_"+Date.now()+"_"+Math.floor(Math.random()*1000),
+    no: outboundContacts.length ? Math.max(...outboundContacts.map(c=>c.no||0))+1 : 1,
+    ...contactFields,
+    status: contactFields.status || "",
+    followUpDate: contactFields.followUpDate || "",
+    converted: false,
+    convertedLeadId: null,
+    createdAt: Date.now()
+  });
+  await saveOutboundContacts();
+  try{ await deleteLeadFromDB(id); }catch(e){}
+  leads = leads.filter(x=>x.id!==id);
+  if(currentView==='leads') renderList();
+  toast(`ย้าย "${leadDisplayName(l)}" ไปที่รายชื่อติดต่อ Outbound แล้วค่ะ`);
 }
 
 // Manager อนุมัติหรือปฏิเสธคำขอลบ Lead
@@ -2191,6 +2216,7 @@ function renderLeadsView(){
               : `<span style="color:#7A5605;font-size:11px;">(รอ Manager)</span>`}
           ` : `
             <button class="row-del-btn" data-leadedit="${l.id}" title="แก้ไข">✎</button>
+            <button class="row-del-btn" data-leadtooutbound="${l.id}" title="ย้ายไปรายชื่อติดต่อ Outbound (กรณีลงผิดเป็น Lead)">🎯</button>
             <button class="row-del-btn" data-leaddel="${l.id}" title="${currentUser?.role==='manager'?'ลบ':'ขออนุมัติลบ'}">🗑</button>
           `}
         </td>
@@ -2565,6 +2591,7 @@ function closeOutboundFollowUpPopup(){
 
 function bindLeadEvents(){
   document.querySelectorAll('[data-leadedit]').forEach(b=>{ b.onclick = ()=>openLeadModal(b.dataset.leadedit); });
+  document.querySelectorAll('[data-leadtooutbound]').forEach(b=>{ b.onclick = ()=>moveLeadToOutbound(b.dataset.leadtooutbound); });
   document.querySelectorAll('[data-leaddel]').forEach(b=>{ b.onclick = ()=>deleteLead(b.dataset.leaddel); });
   const toggleToOutbound = $("toggleToOutboundBtn");
   if(toggleToOutbound) toggleToOutbound.onclick = ()=>{ leadsSubView = 'outbound'; renderList(); };
