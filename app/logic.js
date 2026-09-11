@@ -1828,10 +1828,12 @@ function openLeadModal(id, mode='lead'){
     ? (isOutbound ? "แก้ไขรายชื่อที่ติดต่อไป" : "แก้ไข Lead")
     : (isOutbound ? "เพิ่มรายชื่อที่ติดต่อไป (Outbound)" : "เพิ่ม Lead ใหม่");
   if($("outboundFieldsWrap")) $("outboundFieldsWrap").style.display = isOutbound ? 'flex' : 'none';
-  if($("leadChannelFieldWrap")) $("leadChannelFieldWrap").style.display = isOutbound ? 'none' : '';
   if($("leadSaveBtn")) $("leadSaveBtn").textContent = isOutbound ? 'บันทึกรายชื่อ' : 'บันทึก Lead';
-  if($("leadContactDateLabel")) $("leadContactDateLabel").textContent = isOutbound ? 'วันที่ติดต่อลูกค้า (ครั้งแรก)' : 'วันที่ลูกค้าทักมา';
-  if($("leadContactTimeLabel")) $("leadContactTimeLabel").textContent = isOutbound ? 'เวลาที่ติดต่อ' : 'เวลาที่ลูกค้าทักมา';
+  // ฟิลด์ที่ไม่เกี่ยวกับ Outbound (ยังไม่รู้/ยังไม่ต้องใช้ตอนแค่ติดต่อไปเอง) — ซ่อนไว้ก่อน
+  ["leadChannelFieldWrap","leadContactDateFieldWrap","leadContactTimeFieldWrap","leadContactChannelFieldWrap","leadAddressFieldWrap","leadTaxIdFieldWrap","leadShipFieldWrap","leadBillFieldWrap"].forEach(wid=>{
+    const w = $(wid);
+    if(w) w.style.display = isOutbound ? 'none' : '';
+  });
   if(id){
     const l = sourceArr.find(x=>x.id===id);
     $("l_customerName").value = l.customerName||"";
@@ -1860,6 +1862,7 @@ function openLeadModal(id, mode='lead'){
     if(isOutbound){
       if($("l_outboundSeller")) $("l_outboundSeller").value = l.seller || currentUser?.name || "";
       if($("l_outboundStatus")) $("l_outboundStatus").value = l.status || "";
+      if($("l_outboundStatusDate")) $("l_outboundStatusDate").value = l.statusUpdatedAt ? new Date(l.statusUpdatedAt).toISOString().slice(0,10) : "";
       if($("l_followUpDate")) $("l_followUpDate").value = l.followUpDate || "";
     }
   }else{
@@ -1879,6 +1882,7 @@ function openLeadModal(id, mode='lead'){
     if(isOutbound){
       if($("l_outboundSeller")) $("l_outboundSeller").value = currentUser?.name || "";
       if($("l_outboundStatus")) $("l_outboundStatus").value = "";
+      if($("l_outboundStatusDate")) $("l_outboundStatusDate").value = now.toISOString().slice(0,10);
       if($("l_followUpDate")) $("l_followUpDate").value = "";
     }
   }
@@ -1919,19 +1923,17 @@ async function saveLeadFromModal(){
     common.channel = ""; // ไม่เกี่ยวกับ Outbound เพราะเราติดต่อลูกค้าเอง ไม่ได้เจอเราผ่านช่องทางไหน
     common.seller = $("l_outboundSeller") ? $("l_outboundSeller").value : (currentUser?.name||'');
     common.status = $("l_outboundStatus") ? $("l_outboundStatus").value.trim() : "";
+    const statusDateStr = $("l_outboundStatusDate") ? $("l_outboundStatusDate").value : "";
+    common.statusUpdatedAt = statusDateStr ? new Date(statusDateStr+"T00:00:00").getTime() : (common.status ? Date.now() : null);
     common.followUpDate = $("l_followUpDate") ? $("l_followUpDate").value : "";
     if(editingLeadId){
       const c = outboundContacts.find(x=>x.id===editingLeadId);
-      if(c){
-        if(common.status !== c.status) common.statusUpdatedAt = Date.now();
-        Object.assign(c, common);
-      }
+      if(c) Object.assign(c, common);
     }else{
       outboundContacts.push({
         id: "outb_"+Date.now()+"_"+Math.floor(Math.random()*1000),
         no: outboundContacts.length ? Math.max(...outboundContacts.map(c=>c.no||0))+1 : 1,
         ...common,
-        statusUpdatedAt: common.status ? Date.now() : null,
         converted: false,
         convertedLeadId: null,
         createdAt: Date.now()
@@ -2454,17 +2456,23 @@ function renderOutboundContactsView(){
     return `
       <tr style="${overdue?'background:#FDEDEA;':''}">
         <td>${c.no}</td>
+        <td><span class="badge-type" style="background:${sc.bg};color:${sc.text}">${escapeHtml(c.seller||'-')}</span></td>
         <td>${escapeHtml(c.customerName||'-')}</td>
         <td>${c.nickname ? escapeHtml(c.nickname) : '-'}</td>
         <td>${escapeHtml(c.companyName||'-')}</td>
-        <td><span class="badge-type" style="background:${sc.bg};color:${sc.text}">${escapeHtml(c.seller||'-')}</span></td>
         <td>${escapeHtml((c.phones||[]).filter(Boolean).join(', ')||'-')}</td>
         <td class="date-cell">${c.contactDate ? formatDate(c.contactDate) : '-'}</td>
         <td>
           <input type="text" class="status-input" data-outboundstatus="${c.id}" value="${escapeAttr(c.status||'')}" placeholder="พิมพ์อัพเดตสถานะ..." style="width:160px;">
-          ${c.statusUpdatedAt ? `<div style="font-size:10.5px;color:var(--ink-soft);margin-top:2px;">อัพเดต ${formatDate(new Date(c.statusUpdatedAt).toISOString().slice(0,10))}</div>` : ''}
+          <div style="display:flex;align-items:center;gap:4px;margin-top:3px;">
+            <span style="font-size:10.5px;color:var(--ink-soft);white-space:nowrap;">วันที่อัพเดต:</span>
+            <input type="date" data-outboundstatusdate="${c.id}" value="${c.statusUpdatedAt ? new Date(c.statusUpdatedAt).toISOString().slice(0,10) : ''}" style="font-size:11px;padding:2px 4px;width:130px;">
+          </div>
         </td>
-        <td class="date-cell" style="${overdue?'color:var(--stamp-red);font-weight:700;':''}">${c.followUpDate ? formatDate(c.followUpDate) : '-'}${overdue?' ⚠':''}</td>
+        <td>
+          <input type="date" data-outboundfollowup="${c.id}" value="${c.followUpDate||''}" style="${overdue?'border-color:var(--stamp-red);':''}">
+          ${overdue ? '<div style="color:var(--stamp-red);font-weight:700;font-size:10.5px;margin-top:2px;">⚠ เลยกำหนด</div>' : ''}
+        </td>
         <td style="white-space:nowrap;">
           <button class="row-del-btn" data-outboundedit="${c.id}" title="แก้ไข">✎</button>
           <button class="btn" style="padding:3px 8px;font-size:11px;background:var(--khaki-green);color:#fff;" data-outboundconvert="${c.id}">✓ แปลงเป็น Lead</button>
@@ -2490,7 +2498,7 @@ function renderOutboundContactsView(){
       <div class="table-wrap" style="max-height:65vh;">
         <table class="ov-table">
           <thead><tr>
-            <th>#</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>บริษัท</th><th>เซลล์</th><th>เบอร์โทร</th><th>วันที่ติดต่อ</th><th>สถานะ</th><th>นัดติดต่อกลับ</th><th>จัดการ</th>
+            <th>#</th><th>เซลล์</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>บริษัท</th><th>เบอร์โทร</th><th>วันที่ติดต่อ</th><th>สถานะ</th><th>นัดติดต่อกลับ</th><th>จัดการ</th>
           </tr></thead>
           <tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มีรายชื่อที่ติดต่อไป — กด "เพิ่มรายชื่อติดต่อ Outbound" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
         </table>
@@ -2545,9 +2553,31 @@ function bindOutboundEvents(){
       const newStatus = inp.value.trim();
       if(newStatus === (c.status||'')) return;
       c.status = newStatus;
-      c.statusUpdatedAt = Date.now();
+      const dateEl = document.querySelector(`[data-outboundstatusdate="${inp.dataset.outboundstatus}"]`);
+      const dateStr = dateEl?.value || todayKey();
+      c.statusUpdatedAt = new Date(dateStr+"T00:00:00").getTime();
       await saveOutboundContacts();
       toast('บันทึกสถานะแล้วค่ะ');
+      renderList();
+    };
+  });
+  document.querySelectorAll('[data-outboundstatusdate]').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const c = outboundContacts.find(x=>x.id===inp.dataset.outboundstatusdate);
+      if(!c || !inp.value) return;
+      c.statusUpdatedAt = new Date(inp.value+"T00:00:00").getTime();
+      await saveOutboundContacts();
+      toast('บันทึกวันที่อัพเดตสถานะแล้วค่ะ');
+      renderList();
+    };
+  });
+  document.querySelectorAll('[data-outboundfollowup]').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const c = outboundContacts.find(x=>x.id===inp.dataset.outboundfollowup);
+      if(!c) return;
+      c.followUpDate = inp.value;
+      await saveOutboundContacts();
+      toast('บันทึกวันนัดติดต่อกลับแล้วค่ะ');
       renderList();
     };
   });

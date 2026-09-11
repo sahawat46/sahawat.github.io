@@ -330,11 +330,11 @@ export default function Home() {
         <label>ชื่อบริษัท</label>
         <input type="text" id="l_companyName" placeholder="ชื่อบริษัท (ถ้ามี)" />
       </div>
-      <div className="field">
+      <div className="field" id="leadContactDateFieldWrap">
         <label id="leadContactDateLabel">วันที่ลูกค้าทักมา</label>
         <input type="date" id="l_contactDate" />
       </div>
-      <div className="field">
+      <div className="field" id="leadContactTimeFieldWrap">
         <label id="leadContactTimeLabel">เวลาที่ลูกค้าทักมา</label>
         <input type="time" id="l_contactTime" />
       </div>
@@ -354,7 +354,7 @@ export default function Home() {
         <label>ช่องทางที่ลูกค้าเจอเรา</label>
         <select id="l_channel"></select>
       </div>
-      <div className="field">
+      <div className="field" id="leadContactChannelFieldWrap">
         <label>ช่องทางที่ลูกค้าทักมา</label>
         <select id="l_contactChannel">
           <option value="">— เลือกช่องทาง —</option>
@@ -406,11 +406,11 @@ export default function Home() {
         <select id="l_province"></select>
       </div>
     </div>
-    <div className="field">
+    <div className="field" id="leadAddressFieldWrap">
       <label>ที่อยู่</label>
       <textarea id="l_address" placeholder="ที่อยู่ลูกค้า/บริษัท"></textarea>
     </div>
-    <div className="field">
+    <div className="field" id="leadTaxIdFieldWrap">
       <label>เลขที่ประจำตัวผู้เสียภาษี</label>
       <input type="text" id="l_taxId" placeholder="0-0000-00000-00-0" />
     </div>
@@ -425,7 +425,7 @@ export default function Home() {
         <input type="text" id="l_phone4" placeholder="เบอร์ 4" />
       </div>
     </div>
-    <div className="field-row">
+    <div className="field-row" id="leadShipFieldWrap">
       <div className="field">
         <label>สถานที่จัดส่ง</label>
         <select id="l_shipMode">
@@ -438,7 +438,7 @@ export default function Home() {
         <input type="text" id="l_shipAddress" placeholder="ที่อยู่จัดส่ง (กรณีกรอกใหม่)" />
       </div>
     </div>
-    <div className="field-row">
+    <div className="field-row" id="leadBillFieldWrap">
       <div className="field">
         <label>สถานที่วางบิล</label>
         <select id="l_billMode">
@@ -459,6 +459,10 @@ export default function Home() {
       <div className="field">
         <label>อัพเดตสถานะ</label>
         <input type="text" id="l_outboundStatus" placeholder="เช่น ทักไปแล้ว รอตอบกลับ" />
+      </div>
+      <div className="field">
+        <label>วันที่อัพเดตสถานะ</label>
+        <input type="date" id="l_outboundStatusDate" />
       </div>
       <div className="field">
         <label>วันที่ต้องติดต่อกลับ</label>
