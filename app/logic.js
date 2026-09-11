@@ -1100,7 +1100,7 @@ function applyRoleUI(){
   // ถ้าเข้าถึงได้แค่ Lead อย่างเดียว (ไม่มีสิทธิ์การ์ด/ตาราง/สรุปยอด/ค่าใช้จ่ายเลย) → ซ่อนฟังก์ชันของงานทั้งหมด เหลือแต่ Lead
   const leadOnly = canAccess('lead') && !canAccess('card') && !canAccess('table') && !canAccess('summary') && !canAccess('expense');
   tb('exportBtn', !leadOnly);
-  tb('alertRow', !leadOnly);
+  // alertRow ไม่ซ่อนแม้ leadOnly เพราะตอนนี้มีกล่องเตือนติดต่อลูกค้า Outbound กลับซึ่งอยู่ในสิทธิ์ Lead ด้วย
   tb('summaryRow', !leadOnly);
   const toolbarEl = document.querySelector('.toolbar');
   if(toolbarEl) toolbarEl.style.display = leadOnly ? 'none' : '';
@@ -1737,6 +1737,7 @@ function populateSellerSelect(){
   }
   $("f_customerType").innerHTML = CUSTOMER_TYPES.map(c=>`<option value="${c}">${c}</option>`).join("");
   $("l_channel").innerHTML = LEAD_CHANNELS.map(c=>`<option value="${c}">${c}</option>`).join("");
+  if($("l_outboundSeller")) $("l_outboundSeller").innerHTML = sellers.map(s=>`<option value="${s}">${s}</option>`).join("");
   $("l_province").innerHTML = `<option value="">— เลือกจังหวัด —</option>` + THAI_PROVINCES.map(p=>`<option value="${p}">${p}</option>`).join("");
 }
 
@@ -1829,6 +1830,8 @@ function openLeadModal(id, mode='lead'){
   if($("outboundFieldsWrap")) $("outboundFieldsWrap").style.display = isOutbound ? 'flex' : 'none';
   if($("leadChannelFieldWrap")) $("leadChannelFieldWrap").style.display = isOutbound ? 'none' : '';
   if($("leadSaveBtn")) $("leadSaveBtn").textContent = isOutbound ? 'บันทึกรายชื่อ' : 'บันทึก Lead';
+  if($("leadContactDateLabel")) $("leadContactDateLabel").textContent = isOutbound ? 'วันที่ติดต่อลูกค้า (ครั้งแรก)' : 'วันที่ลูกค้าทักมา';
+  if($("leadContactTimeLabel")) $("leadContactTimeLabel").textContent = isOutbound ? 'เวลาที่ติดต่อ' : 'เวลาที่ลูกค้าทักมา';
   if(id){
     const l = sourceArr.find(x=>x.id===id);
     $("l_customerName").value = l.customerName||"";
@@ -1855,6 +1858,7 @@ function openLeadModal(id, mode='lead'){
     $("l_billMode").value = l.billMode || "company";
     $("l_billAddress").value = l.billAddress||"";
     if(isOutbound){
+      if($("l_outboundSeller")) $("l_outboundSeller").value = l.seller || currentUser?.name || "";
       if($("l_outboundStatus")) $("l_outboundStatus").value = l.status || "";
       if($("l_followUpDate")) $("l_followUpDate").value = l.followUpDate || "";
     }
@@ -1873,6 +1877,7 @@ function openLeadModal(id, mode='lead'){
     $("l_shipMode").value = "company";
     $("l_billMode").value = "company";
     if(isOutbound){
+      if($("l_outboundSeller")) $("l_outboundSeller").value = currentUser?.name || "";
       if($("l_outboundStatus")) $("l_outboundStatus").value = "";
       if($("l_followUpDate")) $("l_followUpDate").value = "";
     }
@@ -1912,16 +1917,21 @@ async function saveLeadFromModal(){
 
   if(leadModalMode === 'outbound'){
     common.channel = ""; // ไม่เกี่ยวกับ Outbound เพราะเราติดต่อลูกค้าเอง ไม่ได้เจอเราผ่านช่องทางไหน
+    common.seller = $("l_outboundSeller") ? $("l_outboundSeller").value : (currentUser?.name||'');
     common.status = $("l_outboundStatus") ? $("l_outboundStatus").value.trim() : "";
     common.followUpDate = $("l_followUpDate") ? $("l_followUpDate").value : "";
     if(editingLeadId){
       const c = outboundContacts.find(x=>x.id===editingLeadId);
-      if(c) Object.assign(c, common);
+      if(c){
+        if(common.status !== c.status) common.statusUpdatedAt = Date.now();
+        Object.assign(c, common);
+      }
     }else{
       outboundContacts.push({
         id: "outb_"+Date.now()+"_"+Math.floor(Math.random()*1000),
         no: outboundContacts.length ? Math.max(...outboundContacts.map(c=>c.no||0))+1 : 1,
         ...common,
+        statusUpdatedAt: common.status ? Date.now() : null,
         converted: false,
         convertedLeadId: null,
         createdAt: Date.now()
@@ -2440,16 +2450,20 @@ function renderOutboundContactsView(){
   const today = todayKey();
   const rows = active.slice().sort((a,b)=>b.createdAt-a.createdAt).map(c=>{
     const overdue = c.followUpDate && c.followUpDate < today;
+    const sc = personColor(c.seller);
     return `
       <tr style="${overdue?'background:#FDEDEA;':''}">
         <td>${c.no}</td>
         <td>${escapeHtml(c.customerName||'-')}</td>
         <td>${c.nickname ? escapeHtml(c.nickname) : '-'}</td>
         <td>${escapeHtml(c.companyName||'-')}</td>
-        <td><span class="badge-type" style="background:#E4EAC9;color:var(--olive-dark);">${escapeHtml(c.channel||'-')}</span></td>
+        <td><span class="badge-type" style="background:${sc.bg};color:${sc.text}">${escapeHtml(c.seller||'-')}</span></td>
         <td>${escapeHtml((c.phones||[]).filter(Boolean).join(', ')||'-')}</td>
         <td class="date-cell">${c.contactDate ? formatDate(c.contactDate) : '-'}</td>
-        <td>${escapeHtml(c.status||'-')}</td>
+        <td>
+          <input type="text" class="status-input" data-outboundstatus="${c.id}" value="${escapeAttr(c.status||'')}" placeholder="พิมพ์อัพเดตสถานะ..." style="width:160px;">
+          ${c.statusUpdatedAt ? `<div style="font-size:10.5px;color:var(--ink-soft);margin-top:2px;">อัพเดต ${formatDate(new Date(c.statusUpdatedAt).toISOString().slice(0,10))}</div>` : ''}
+        </td>
         <td class="date-cell" style="${overdue?'color:var(--stamp-red);font-weight:700;':''}">${c.followUpDate ? formatDate(c.followUpDate) : '-'}${overdue?' ⚠':''}</td>
         <td style="white-space:nowrap;">
           <button class="row-del-btn" data-outboundedit="${c.id}" title="แก้ไข">✎</button>
@@ -2476,7 +2490,7 @@ function renderOutboundContactsView(){
       <div class="table-wrap" style="max-height:65vh;">
         <table class="ov-table">
           <thead><tr>
-            <th>#</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>บริษัท</th><th>ช่องทาง</th><th>เบอร์โทร</th><th>วันที่ติดต่อ</th><th>สถานะ</th><th>นัดติดต่อกลับ</th><th>จัดการ</th>
+            <th>#</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>บริษัท</th><th>เซลล์</th><th>เบอร์โทร</th><th>วันที่ติดต่อ</th><th>สถานะ</th><th>นัดติดต่อกลับ</th><th>จัดการ</th>
           </tr></thead>
           <tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มีรายชื่อที่ติดต่อไป — กด "เพิ่มรายชื่อติดต่อ Outbound" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
         </table>
@@ -2524,16 +2538,41 @@ function bindOutboundEvents(){
   document.querySelectorAll('[data-outboundedit]').forEach(b=>{ b.onclick = ()=>openLeadModal(b.dataset.outboundedit, 'outbound'); });
   document.querySelectorAll('[data-outboundconvert]').forEach(b=>{ b.onclick = ()=>convertOutboundToLead(b.dataset.outboundconvert); });
   document.querySelectorAll('[data-outbounddel]').forEach(b=>{ b.onclick = ()=>deleteOutboundContact(b.dataset.outbounddel); });
+  document.querySelectorAll('[data-outboundstatus]').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const c = outboundContacts.find(x=>x.id===inp.dataset.outboundstatus);
+      if(!c) return;
+      const newStatus = inp.value.trim();
+      if(newStatus === (c.status||'')) return;
+      c.status = newStatus;
+      c.statusUpdatedAt = Date.now();
+      await saveOutboundContacts();
+      toast('บันทึกสถานะแล้วค่ะ');
+      renderList();
+    };
+  });
 }
 
 // ป๊อปอัพเตือนวันนัดติดต่อลูกค้า Outbound กลับ ตอน login (เตือนแค่ครั้งแรกของวัน)
+// ผู้ที่ควรเห็นเตือนการติดต่อกลับ: เซลล์เจ้าของรายชื่อเอง หรือเมเนเจอร์ที่กำหนดไว้ (แอร์/ออย) เห็นทุกรายชื่อ
+const OUTBOUND_ALERT_MANAGERS = ["แอร์","ออย"];
+function getDueOutboundFollowUps(){
+  if(!currentUser) return [];
+  const today = todayKey();
+  const seesAll = OUTBOUND_ALERT_MANAGERS.includes(currentUser.name);
+  return outboundContacts.filter(c=>{
+    if(c.converted || !c.followUpDate || c.followUpDate>today) return false;
+    return seesAll || c.seller===currentUser.name;
+  });
+}
+
 function checkOutboundFollowUps(){
   if(!currentUser) return;
   const today = todayKey();
   const loginKey = `outboundFollowUpAlerted_${currentUser.username}_${today}`;
   if(localStorage.getItem(loginKey)) return;
   localStorage.setItem(loginKey, '1');
-  const due = outboundContacts.filter(c=>!c.converted && c.followUpDate && c.followUpDate<=today);
+  const due = getDueOutboundFollowUps();
   if(!due.length) return;
   showOutboundFollowUpPopup(due);
 }
@@ -2897,9 +2936,14 @@ function renderLateShipmentReport(){
 // ข้อ 8-9: กล่องเตือนใกล้ถึงกำหนดส่ง / พรุ่งนี้ส่ง (อิงวันที่ส่งงาน)
 function renderAlerts(){
   const el = $("alertRow");
-  if(currentView==='summary' || currentView==='leads'){ el.innerHTML=''; return; }
-  const { soon, tomorrow } = getUpcomingDeliveries();
   let html = '';
+  const dueOutbound = getDueOutboundFollowUps();
+  if(dueOutbound.length){
+    html += `<div class="alert-box outbound-due"><div class="at">🎯 ถึงกำหนดติดต่อลูกค้ากลับ — ${dueOutbound.length} ราย</div>
+      <ul>${dueOutbound.map(c=>`<li>${escapeHtml(c.customerName||'ไม่มีชื่อ')} (${escapeHtml(c.seller||'-')})</li>`).join("")}</ul></div>`;
+  }
+  if(currentView==='summary' || currentView==='leads'){ el.innerHTML=html; return; }
+  const { soon, tomorrow } = getUpcomingDeliveries();
   if(soon.length){
     html += `<div class="alert-box soon"><div class="at">⏰ ใกล้ถึงกำหนดส่ง (ภายใน 4 วัน) — ${soon.length} งาน</div>
       <ul>${soon.map(j=>`<li>${escapeHtml(j.job||'-')} · ${sellerDisplay(j)} · ส่ง ${formatDate(j.deliveryDate)}</li>`).join("")}</ul></div>`;

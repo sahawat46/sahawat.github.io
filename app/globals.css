@@ -164,6 +164,7 @@
   .alert-box .at{font-family:'Kanit';font-weight:700;font-size:13.5px;margin-bottom:5px;display:flex;align-items:center;gap:6px;}
   .alert-box.soon{background:#FCEFC7;border:1px solid #E8C76A;color:#7A5605;}
   .alert-box.tomorrow{background:#F6C9C0;border:1px solid #E59C8E;color:#8A1F0E;}
+  .alert-box.outbound-due{background:#EAF6F5;border:1px solid #7FC6C6;color:#0E6E6E;}
   .alert-box ul{margin:0;padding-left:18px;}
   .alert-box li{margin-bottom:2px;}
   .alert-box.empty-alert{display:none;}

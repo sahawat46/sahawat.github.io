@@ -331,11 +331,11 @@ export default function Home() {
         <input type="text" id="l_companyName" placeholder="ชื่อบริษัท (ถ้ามี)" />
       </div>
       <div className="field">
-        <label>วันที่ลูกค้าทักมา</label>
+        <label id="leadContactDateLabel">วันที่ลูกค้าทักมา</label>
         <input type="date" id="l_contactDate" />
       </div>
       <div className="field">
-        <label>เวลาที่ลูกค้าทักมา</label>
+        <label id="leadContactTimeLabel">เวลาที่ลูกค้าทักมา</label>
         <input type="time" id="l_contactTime" />
       </div>
     </div>
@@ -452,6 +452,10 @@ export default function Home() {
       </div>
     </div>
     <div className="field-row" id="outboundFieldsWrap" style={{"display":"none"}}>
+      <div className="field">
+        <label>เซลล์ผู้ติดต่อ</label>
+        <select id="l_outboundSeller"></select>
+      </div>
       <div className="field">
         <label>อัพเดตสถานะ</label>
         <input type="text" id="l_outboundStatus" placeholder="เช่น ทักไปแล้ว รอตอบกลับ" />
