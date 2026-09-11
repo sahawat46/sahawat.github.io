@@ -140,6 +140,8 @@ let editingLeadId = null;
 let outboundContacts = []; // ลูกค้าที่เซลล์ติดต่อไปเอง (Outbound) — ยังไม่นับเป็น Lead จนกว่าจะตอบกลับ/แปลงเป็น Lead
 let leadModalMode = 'lead'; // 'lead' | 'outbound' — ใช้ฟอร์มเดียวกัน สลับโหมดตอนเปิด modal
 let leadsSubView = 'leads'; // 'leads' | 'outbound' — สลับมุมมองในหน้า Lead
+let outboundSearchQuery = ''; // ค้นหาชื่อลูกค้า/บริษัท ในตาราง Outbound
+let outboundSellerFilter = ''; // กรองตามชื่อเซลล์ ในตาราง Outbound
 let leadPeriod = 'month'; // day | month | quarter | year
 let leadDailyShowAllMonths = false; // สรุป Lead ประจำวัน — false = โชว์เฉพาะเดือนปัจจุบัน, true = โชว์ทุกเดือน
 let users = [];
@@ -729,6 +731,12 @@ async function loadOutboundContacts(){
       outboundContacts = res && res.value ? JSON.parse(res.value) : [];
     }
   } catch(e){ console.error('loadOutboundContacts',e); outboundContacts=[]; }
+  // เติมวันที่อัพเดตสถานะให้รายการเก่าที่พิมพ์สถานะไว้ก่อนมีช่องวันที่ (กันพนักงานต้องไล่แก้เอง)
+  let needsBackfill = false;
+  outboundContacts.forEach(c=>{
+    if(c.status && !c.statusUpdatedAt){ c.statusUpdatedAt = Date.now(); needsBackfill = true; }
+  });
+  if(needsBackfill) await saveOutboundContacts();
 }
 
 async function saveOutboundContacts(){
@@ -2449,8 +2457,17 @@ function renderLeadsView(){
 function renderOutboundContactsView(){
   const active = outboundContacts.filter(c=>!c.converted);
   const converted = outboundContacts.filter(c=>c.converted);
+  let filteredActive = active;
+  const q = outboundSearchQuery.trim().toLowerCase();
+  if(q){
+    filteredActive = filteredActive.filter(c=>`${c.customerName||''} ${c.companyName||''}`.toLowerCase().includes(q));
+  }
+  if(outboundSellerFilter){
+    filteredActive = filteredActive.filter(c=>c.seller===outboundSellerFilter);
+  }
+  const sellerOptions = getSellerNames().filter(Boolean);
   const today = todayKey();
-  const rows = active.slice().sort((a,b)=>b.createdAt-a.createdAt).map(c=>{
+  const rows = filteredActive.slice().sort((a,b)=>b.createdAt-a.createdAt).map(c=>{
     const overdue = c.followUpDate && c.followUpDate < today;
     const sc = personColor(c.seller);
     return `
@@ -2488,19 +2505,25 @@ function renderOutboundContactsView(){
     </div>
     <div class="summary-controls" style="flex-wrap:wrap;gap:10px;">
       <button class="btn primary" id="addOutboundBtn">➕ เพิ่มรายชื่อติดต่อ Outbound</button>
+      <input type="text" id="outboundSearchInput" class="filt" placeholder="🔍 ค้นหาชื่อลูกค้า/บริษัท..." value="${escapeAttr(outboundSearchQuery)}" style="flex:1;min-width:200px;">
+      <select id="outboundSellerFilterSel" class="filt">
+        <option value="">ทุกเซลล์</option>
+        ${sellerOptions.map(s=>`<option value="${s}" ${s===outboundSellerFilter?'selected':''}>${escapeHtml(s)}</option>`).join('')}
+      </select>
+      ${(outboundSearchQuery||outboundSellerFilter) ? `<button class="btn ghost" id="clearOutboundFilterBtn" style="padding:5px 9px;font-size:12px;">✕ ล้างตัวกรอง</button>` : ''}
     </div>
     <div class="summary-row">
       <div class="summary-box"><div class="num">${active.length}</div><div class="lbl">ยังไม่ตอบกลับ</div></div>
       <div class="summary-box"><div class="num" style="color:var(--khaki-green)">${converted.length}</div><div class="lbl">แปลงเป็น Lead แล้ว</div></div>
     </div>
     <div class="summary-panel">
-      <h3>🎯 รายชื่อลูกค้าที่เซลล์ติดต่อไปเอง (ยังไม่เป็น Lead)</h3>
+      <h3>🎯 รายชื่อลูกค้าที่เซลล์ติดต่อไปเอง (ยังไม่เป็น Lead)${(outboundSearchQuery||outboundSellerFilter) ? ` — กรองแล้ว ${filteredActive.length} จาก ${active.length}` : ''}</h3>
       <div class="table-wrap" style="max-height:65vh;">
         <table class="ov-table">
           <thead><tr>
             <th>#</th><th>เซลล์</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>บริษัท</th><th>เบอร์โทร</th><th>วันที่ติดต่อ</th><th>สถานะ</th><th>นัดติดต่อกลับ</th><th>จัดการ</th>
           </tr></thead>
-          <tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มีรายชื่อที่ติดต่อไป — กด "เพิ่มรายชื่อติดต่อ Outbound" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
+          <tbody>${rows || `<tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:20px;">${(outboundSearchQuery||outboundSellerFilter) ? 'ไม่พบรายชื่อที่ตรงกับตัวกรอง' : 'ยังไม่มีรายชื่อที่ติดต่อไป — กด "เพิ่มรายชื่อติดต่อ Outbound" ด้านบนเพื่อเริ่มต้น'}</td></tr>`}</tbody>
         </table>
       </div>
     </div>
@@ -2543,6 +2566,12 @@ function bindOutboundEvents(){
   if(t1) t1.onclick = ()=>{ leadsSubView = 'leads'; renderList(); };
   if(t2) t2.onclick = ()=>{ leadsSubView = 'outbound'; renderList(); };
   if(addBtn) addBtn.onclick = ()=>openLeadModal(null, 'outbound');
+  const searchInp = $("outboundSearchInput");
+  if(searchInp) searchInp.onchange = ()=>{ outboundSearchQuery = searchInp.value; renderList(); };
+  const sellerFilterSel = $("outboundSellerFilterSel");
+  if(sellerFilterSel) sellerFilterSel.onchange = ()=>{ outboundSellerFilter = sellerFilterSel.value; renderList(); };
+  const clearFilterBtn = $("clearOutboundFilterBtn");
+  if(clearFilterBtn) clearFilterBtn.onclick = ()=>{ outboundSearchQuery=''; outboundSellerFilter=''; renderList(); };
   document.querySelectorAll('[data-outboundedit]').forEach(b=>{ b.onclick = ()=>openLeadModal(b.dataset.outboundedit, 'outbound'); });
   document.querySelectorAll('[data-outboundconvert]').forEach(b=>{ b.onclick = ()=>convertOutboundToLead(b.dataset.outboundconvert); });
   document.querySelectorAll('[data-outbounddel]').forEach(b=>{ b.onclick = ()=>deleteOutboundContact(b.dataset.outbounddel); });
