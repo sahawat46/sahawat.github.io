@@ -283,6 +283,9 @@
   table.ov-table tbody tr:nth-child(even){background:#F7F2E6;}
   table.ov-table tbody tr:hover{background:#FBF0D9;}
   table.ov-table tbody tr.row-overdue td:first-child{box-shadow:inset 3px 0 0 var(--stamp-red);}
+  /* ตาราง "รายการ Lead ทั้งหมด" — บังคับความกว้างคอลัมน์ + ตัดคำแทนล้นแนวนอน กันต้องเลื่อนซ้ายขวา */
+  table.lead-list-table{table-layout:fixed;width:100%;min-width:0;}
+  table.lead-list-table td, table.lead-list-table th{white-space:normal;word-break:break-word;}
   .sticky-col{position:sticky;background:inherit;z-index:3;}
   .sticky-col.c1{left:0;min-width:42px;}
   .sticky-col.c2{left:42px;min-width:64px;}

@@ -2215,6 +2215,7 @@ function renderLeadsView(){
         <td>${l.no}</td>
         <td><span class="badge-type" style="${teamColor}">${escapeHtml(l.team||'-')}</span></td>
         <td><span class="badge-type" style="background:#E4EAC9;color:var(--olive-dark);">${escapeHtml(l.channel||'-')}</span></td>
+        <td>${escapeHtml(l.contactChannel||'-')}</td>
         <td>${escapeHtml(l.lineOrFb||'-')}${l.lineUserId ? ` <span class="badge-type" title="ผูกกับ LINE userId แล้ว หาเจอแม้เปลี่ยนชื่อ/รูป" style="background:#D3F2DD;color:#1E7A44;font-size:10.5px;">🔗 LINE</span>` : ''}</td>
         <td>${(l.phones||[]).filter(Boolean).join(", ")||'-'}</td>
         <td class="date-cell">${l.contactDate ? formatDate(l.contactDate)+(l.contactTime?' '+l.contactTime:'') : formatDate(new Date(l.createdAt).toISOString().slice(0,10))}</td>
@@ -2442,11 +2443,24 @@ function renderLeadsView(){
     <div class="summary-panel">
       <h3>รายการ Lead ทั้งหมด</h3>
       <div class="table-wrap" style="max-height:60vh;">
-        <table class="ov-table">
+        <table class="ov-table lead-list-table">
           <thead><tr>
-            <th>#</th><th>ฝ่ายรับผิดชอบ</th><th>ช่องทาง</th><th>ไลน์/FB</th><th>เบอร์โทร</th><th>วันที่/เวลาทักมา</th><th>สถานะ</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>ประเภท</th><th>บริษัท</th><th>จังหวัด</th><th>จัดการ</th>
+            <th style="width:40px;">#</th>
+            <th style="width:110px;">ฝ่ายรับผิดชอบ</th>
+            <th style="width:70px;">ช่องทาง</th>
+            <th style="width:90px;">ช่องทางที่ทักมา</th>
+            <th style="width:150px;">ไลน์/FB</th>
+            <th style="width:95px;">เบอร์โทร</th>
+            <th style="width:95px;">วันที่/เวลาทักมา</th>
+            <th style="width:105px;">สถานะ</th>
+            <th style="width:140px;">ชื่อลูกค้า</th>
+            <th style="width:90px;">ชื่อที่เรียก</th>
+            <th style="width:100px;">ประเภท</th>
+            <th style="width:140px;">บริษัท</th>
+            <th style="width:80px;">จังหวัด</th>
+            <th style="width:100px;">จัดการ</th>
           </tr></thead>
-          <tbody>${leadRows || '<tr><td colspan="13" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มี Lead — กด "เพิ่ม Lead ใหม่" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
+          <tbody>${leadRows || '<tr><td colspan="14" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มี Lead — กด "เพิ่ม Lead ใหม่" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
         </table>
       </div>
     </div>
