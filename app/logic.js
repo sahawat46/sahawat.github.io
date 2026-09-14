@@ -2494,20 +2494,20 @@ function renderOutboundContactsView(){
         <td>${escapeHtml((c.phones||[]).filter(Boolean).join(', ')||'-')}</td>
         <td class="date-cell">${c.contactDate ? formatDate(c.contactDate) : '-'}</td>
         <td>
-          <input type="text" class="status-input" data-outboundstatus="${c.id}" value="${escapeAttr(c.status||'')}" placeholder="พิมพ์อัพเดตสถานะ..." style="width:160px;">
-          <div style="display:flex;align-items:center;gap:4px;margin-top:3px;">
-            <span style="font-size:10.5px;color:var(--ink-soft);white-space:nowrap;">วันที่อัพเดต:</span>
-            <input type="date" data-outboundstatusdate="${c.id}" value="${c.statusUpdatedAt ? new Date(c.statusUpdatedAt).toISOString().slice(0,10) : ''}" style="font-size:11px;padding:2px 4px;width:130px;">
+          <input type="text" class="status-input" data-outboundstatus="${c.id}" value="${escapeAttr(c.status||'')}" placeholder="พิมพ์อัพเดตสถานะ..." style="width:100%;box-sizing:border-box;">
+          <div style="display:flex;align-items:center;gap:4px;margin-top:3px;flex-wrap:wrap;">
+            <span style="font-size:10.5px;color:var(--ink-soft);white-space:nowrap;">วันที่:</span>
+            <input type="date" data-outboundstatusdate="${c.id}" value="${c.statusUpdatedAt ? new Date(c.statusUpdatedAt).toISOString().slice(0,10) : ''}" style="font-size:11px;padding:2px 4px;width:112px;">
           </div>
         </td>
         <td>
-          <input type="date" data-outboundfollowup="${c.id}" value="${c.followUpDate||''}" style="${overdue?'border-color:var(--stamp-red);':''}">
+          <input type="date" data-outboundfollowup="${c.id}" value="${c.followUpDate||''}" style="width:100%;box-sizing:border-box;${overdue?'border-color:var(--stamp-red);':''}">
           ${overdue ? '<div style="color:var(--stamp-red);font-weight:700;font-size:10.5px;margin-top:2px;">⚠ เลยกำหนด</div>' : ''}
         </td>
-        <td style="white-space:nowrap;">
+        <td>
           <button class="row-del-btn" data-outboundedit="${c.id}" title="แก้ไข">✎</button>
-          <button class="btn" style="padding:3px 8px;font-size:11px;background:var(--khaki-green);color:#fff;" data-outboundconvert="${c.id}">✓ แปลงเป็น Lead</button>
           <button class="row-del-btn" data-outbounddel="${c.id}" title="ลบ">🗑</button>
+          <button class="btn" style="padding:3px 8px;font-size:11px;background:var(--khaki-green);color:#fff;margin-top:4px;" data-outboundconvert="${c.id}">✓ แปลงเป็น Lead</button>
         </td>
       </tr>`;
   }).join("");
@@ -2533,9 +2533,18 @@ function renderOutboundContactsView(){
     <div class="summary-panel">
       <h3>🎯 รายชื่อลูกค้าที่เซลล์ติดต่อไปเอง (ยังไม่เป็น Lead)${(outboundSearchQuery||outboundSellerFilter) ? ` — กรองแล้ว ${filteredActive.length} จาก ${active.length}` : ''}</h3>
       <div class="table-wrap" style="max-height:65vh;">
-        <table class="ov-table">
+        <table class="ov-table outbound-list-table">
           <thead><tr>
-            <th>#</th><th>เซลล์</th><th>ชื่อลูกค้า</th><th>ชื่อที่เรียก</th><th>บริษัท</th><th>เบอร์โทร</th><th>วันที่ติดต่อ</th><th>สถานะ</th><th>นัดติดต่อกลับ</th><th>จัดการ</th>
+            <th style="width:36px;">#</th>
+            <th style="width:90px;">เซลล์</th>
+            <th style="width:130px;">ชื่อลูกค้า</th>
+            <th style="width:90px;">ชื่อที่เรียก</th>
+            <th style="width:150px;">บริษัท</th>
+            <th style="width:100px;">เบอร์โทร</th>
+            <th style="width:85px;">วันที่ติดต่อ</th>
+            <th style="width:180px;">สถานะ</th>
+            <th style="width:110px;">นัดติดต่อกลับ</th>
+            <th style="width:160px;">จัดการ</th>
           </tr></thead>
           <tbody>${rows || `<tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:20px;">${(outboundSearchQuery||outboundSellerFilter) ? 'ไม่พบรายชื่อที่ตรงกับตัวกรอง' : 'ยังไม่มีรายชื่อที่ติดต่อไป — กด "เพิ่มรายชื่อติดต่อ Outbound" ด้านบนเพื่อเริ่มต้น'}</td></tr>`}</tbody>
         </table>

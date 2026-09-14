@@ -286,6 +286,9 @@
   /* ตาราง "รายการ Lead ทั้งหมด" — บังคับความกว้างคอลัมน์ + ตัดคำแทนล้นแนวนอน กันต้องเลื่อนซ้ายขวา */
   table.lead-list-table{table-layout:fixed;width:100%;min-width:0;}
   table.lead-list-table td, table.lead-list-table th{white-space:normal;word-break:break-word;}
+  /* ตาราง "รายชื่อติดต่อ Outbound" — คุมความกว้างเหมือนกัน กันตารางกว้างเกินตอนมีหลายแถว */
+  table.outbound-list-table{table-layout:fixed;width:100%;min-width:0;}
+  table.outbound-list-table td, table.outbound-list-table th{white-space:normal;word-break:break-word;}
   .sticky-col{position:sticky;background:inherit;z-index:3;}
   .sticky-col.c1{left:0;min-width:42px;}
   .sticky-col.c2{left:42px;min-width:64px;}
