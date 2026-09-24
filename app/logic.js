@@ -5105,6 +5105,50 @@ function checkEmailReminders(){
   saveJobs();
 }
 
+// เช็คว่ายอดขายอาจลงซ้ำกับงานที่มีอยู่แล้วหรือไม่ — ชื่องาน/เลขใบเสนอราคา ต้องคล้าย/ตรงกันอย่างใดอย่างหนึ่ง
+// ร่วมกับยอดขายที่ใกล้เคียงกันมาก (ไม่เกิน 2% ของยอด) ถึงจะถือว่า "น่าสงสัย"
+function isLikelyDuplicateSale(a, b){
+  if(!a.salesAmount || !b.salesAmount) return false;
+  const amtDiff = Math.abs(a.salesAmount - b.salesAmount);
+  const amtTolerance = Math.max(a.salesAmount, b.salesAmount) * 0.02;
+  if(amtDiff > amtTolerance) return false;
+  const norm = s => (s||'').trim().toLowerCase();
+  const nameA = norm(a.job), nameB = norm(b.job);
+  const nameMatch = !!nameA && !!nameB && (nameA===nameB || nameA.includes(nameB) || nameB.includes(nameA));
+  const quoteA = norm(a.quote), quoteB = norm(b.quote);
+  const quoteMatch = !!quoteA && !!quoteB && quoteA===quoteB;
+  return nameMatch || quoteMatch;
+}
+
+function findPossibleDuplicateSales(common, excludeId){
+  return jobs.filter(j=>{
+    if(j.cancelled) return false;
+    if(excludeId && j.id===excludeId) return false;
+    return isLikelyDuplicateSale(j, common);
+  });
+}
+
+// คืน Promise<boolean> — true = ให้บันทึกต่อได้ (ไม่พบ/ผู้ใช้ยืนยันว่าไม่ซ้ำ), false = ยกเลิกการบันทึก
+function checkSalesDuplicate(common, excludeId){
+  return new Promise(resolve=>{
+    if(!(common.salesAmount>0)){ resolve(true); return; }
+    const matches = findPossibleDuplicateSales(common, excludeId);
+    if(!matches.length){ resolve(true); return; }
+    const box = $('salesDuplicateList');
+    box.innerHTML = matches.map(j=>`
+      <div style="background:#fff;border:1px solid #E8C76A;border-radius:9px;padding:10px 12px;margin-bottom:8px;">
+        <div style="font-weight:600;font-size:13.5px;">${escapeHtml(j.job||'ไม่มีชื่องาน')}</div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">${sellerDisplay(j)} · ใบเสนอราคา ${escapeHtml(j.quote||'-')} · ${formatDate(j.date)}</div>
+        <div style="font-weight:700;color:#C8862B;margin-top:4px;">${Number(j.salesAmount).toLocaleString()} บาท</div>
+      </div>
+    `).join('');
+    $('salesDuplicateModal').style.display = 'flex';
+    const cleanup = ()=>{ $('salesDuplicateModal').style.display = 'none'; };
+    $('salesDuplicateProceedBtn').onclick = ()=>{ cleanup(); resolve(true); };
+    $('salesDuplicateCancelBtn').onclick = ()=>{ cleanup(); resolve(false); };
+  });
+}
+
 async function saveFromModal(){
   const jobName = $("f_jobname").value.trim();
   if(!jobName){ alert("กรุณากรอกชื่องาน"); return; }
@@ -5125,6 +5169,8 @@ async function saveFromModal(){
     countInSales: $("f_countInSales").checked,
     leadId: $("f_leadId").value || "",
   };
+  const proceed = await checkSalesDuplicate(common, editingId);
+  if(!proceed) return;
   let isNew = false;
   let newJobId = null;
   if(editingId){

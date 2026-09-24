@@ -232,6 +232,20 @@ export default function Home() {
   </div>
 </div>
 
+{/*  ป๊อปอัพเตือนยอดขายอาจลงซ้ำ ก่อนบันทึกงาน */}
+<div id="salesDuplicateModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(0,0,0,.55)","zIndex":"9997","alignItems":"center","justifyContent":"center","padding":"16px"}}>
+  <div style={{"background":"#FFF8E7","borderTop":"6px solid #C8862B","borderRadius":"14px","maxWidth":"560px","width":"100%","padding":"22px","boxShadow":"0 12px 30px rgba(0,0,0,0.3)","maxHeight":"85vh","overflowY":"auto"}}>
+    <div style={{"fontSize":"32px","marginBottom":"6px","textAlign":"center"}}>⚠️</div>
+    <h3 style={{"fontFamily":"'Kanit'","fontSize":"16.5px","margin":"0 0 6px","color":"#7A5605","textAlign":"center"}}>อาจลงยอดขายซ้ำ</h3>
+    <p style={{"fontSize":"12.5px","color":"#7A5605","margin":"0 0 14px","textAlign":"center"}}>งานนี้มีชื่องาน/เลขใบเสนอราคา/ยอดขาย ใกล้เคียงหรือตรงกับงานที่มีอยู่แล้ว — ตรวจสอบก่อนบันทึกนะคะ</p>
+    <div id="salesDuplicateList"></div>
+    <div style={{"display":"flex","gap":"10px","marginTop":"14px"}}>
+      <button className="btn ghost" id="salesDuplicateCancelBtn" style={{"flex":"1"}}>✕ ยกเลิก ไปแก้ไขก่อน</button>
+      <button className="btn" id="salesDuplicateProceedBtn" style={{"flex":"1","background":"#C8862B","color":"#fff","fontWeight":"700"}}>ดำเนินการต่อ (ไม่ซ้ำจริง)</button>
+    </div>
+  </div>
+</div>
+
 {/*  ป๊อปอัพเตือนวันนัดติดต่อลูกค้า Outbound กลับ ตอน login */}
 <div id="outboundFollowUpModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(43,37,32,0.6)","zIndex":"310","alignItems":"center","justifyContent":"center","padding":"16px"}}>
   <div className="outbound-box">
