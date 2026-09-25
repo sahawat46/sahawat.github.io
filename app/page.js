@@ -259,7 +259,7 @@ export default function Home() {
 
 {/*  ข้อ 7: ป๊อปอัพดูรายละเอียดย่อยของยอดขายรวม  */}
 <div id="breakdownModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(0,0,0,.55)","zIndex":"306","alignItems":"center","justifyContent":"center","padding":"16px"}} onClick={(e) => { if(e.target.id === "breakdownModal" && window.closeBreakdownModal) window.closeBreakdownModal(); }}>
-  <div style={{"background":"#fff","borderRadius":"14px","padding":"22px 24px","maxWidth":"680px","width":"100%","maxHeight":"85vh","overflowY":"auto","boxShadow":"0 12px 30px rgba(0,0,0,.3)"}}>
+  <div style={{"background":"#fff","borderRadius":"14px","padding":"22px 24px","maxWidth":"780px","width":"100%","maxHeight":"85vh","overflowY":"auto","boxShadow":"0 12px 30px rgba(0,0,0,.3)"}}>
     <div style={{"display":"flex","justifyContent":"space-between","alignItems":"center","marginBottom":"12px","gap":"10px"}}>
       <h3 id="breakdownTitle" style={{"margin":"0","fontFamily":"'Kanit'","fontSize":"16px","color":"var(--olive-dark)"}}>รายละเอียดยอดขาย</h3>
       <button className="btn ghost" style={{"padding":"4px 12px","fontSize":"12px","flexShrink":"0"}} onClick={() => { if(window.closeBreakdownModal) window.closeBreakdownModal(); }}>✕ ปิด</button>

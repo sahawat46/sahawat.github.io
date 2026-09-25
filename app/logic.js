@@ -3475,13 +3475,30 @@ function showGroupBreakdown(key){
   showSalesBreakdown(`รายละเอียดยอดขาย — ${entry.label}`, entry.jobs, entry.hist);
 }
 let _lastBreakdown = null; // { title, jobsList, histAmount } — ใช้รีเฟรชป็อปอัพนี้เองหลังกดตรวจสอบแล้ว/แก้ไข
+let _breakdownSearchTerm = '';
 function showSalesBreakdown(title, jobsList, histAmount){
   _lastBreakdown = { title, jobsList, histAmount };
+  _breakdownSearchTerm = '';
   const box = $('breakdownBody');
   const titleEl = $('breakdownTitle');
   if(!box || !titleEl) return;
   titleEl.textContent = title;
-  const sorted = (jobsList||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  box.innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+      <input type="text" id="breakdownSearch" placeholder="ค้นหาชื่องาน / เลขที่ใบเสนอราคา..." oninput="window.filterBreakdownRows(this.value)" style="flex:1;min-width:0;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;">
+      <button onclick="window.exportBreakdownExcel()" class="btn ghost" style="padding:6px 12px;font-size:12.5px;white-space:nowrap;flex-shrink:0;">⬇ Excel</button>
+    </div>
+    <div id="breakdownTableWrap"></div>`;
+  renderBreakdownRows('');
+  $('breakdownModal').style.display = 'flex';
+}
+function renderBreakdownRows(term){
+  _breakdownSearchTerm = term||'';
+  const wrap = $('breakdownTableWrap');
+  if(!wrap || !_lastBreakdown) return;
+  const q = _breakdownSearchTerm.trim().toLowerCase();
+  const all = (_lastBreakdown.jobsList||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const sorted = q ? all.filter(j=>(j.job||'').toLowerCase().includes(q) || (j.quote||'').toLowerCase().includes(q)) : all;
   const rowsHtml = sorted.map(j=>{
     const dups = findExistingDuplicatesFor(j);
     const warnHtml = dups.length ? `
@@ -3497,23 +3514,52 @@ function showSalesBreakdown(title, jobsList, histAmount){
       <td>${formatDate(j.date)}</td>
       <td>${escapeHtml(j.customerType||'-')}</td>
       <td style="text-align:right;">${(Number(j.salesAmount)||0).toLocaleString()}</td>
+      <td style="text-align:center;"><button onclick="window.editJobFromBreakdown('${j.id}')" style="padding:2px 9px;font-size:11px;border:1px solid var(--olive-dark);background:#fff;color:var(--olive-dark);border-radius:10px;cursor:pointer;white-space:nowrap;">✎ แก้ไข</button></td>
     </tr>`;
   }).join('');
   const jobsTotal = sorted.reduce((s,j)=>s+(Number(j.salesAmount)||0),0);
-  const hist = Math.max(0, Math.round(histAmount||0));
-  box.innerHTML = `
+  const hist = Math.max(0, Math.round(_lastBreakdown.histAmount||0));
+  const showHist = !q; // ยอดขายย้อนหลังไม่มีรายละเอียดระดับงาน จึงไม่รวมเมื่อกำลังค้นหา/กรองอยู่
+  wrap.innerHTML = `
     <div style="max-height:60vh;overflow:auto;">
       <table class="rep-table">
-        <thead><tr><th>ชื่องาน</th><th>เซลล์</th><th>วันที่</th><th>ประเภทลูกค้า</th><th style="text-align:right;">ยอดขาย</th></tr></thead>
-        <tbody>${rowsHtml || '<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);">ไม่มีรายการงานในช่วงนี้</td></tr>'}</tbody>
+        <thead><tr><th>ชื่องาน</th><th>เซลล์</th><th>วันที่</th><th>ประเภทลูกค้า</th><th style="text-align:right;">ยอดขาย</th><th>จัดการ</th></tr></thead>
+        <tbody>${rowsHtml || `<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);">${q?'ไม่พบรายการที่ค้นหา':'ไม่มีรายการงานในช่วงนี้'}</td></tr>`}</tbody>
         <tfoot>
-          <tr><td colspan="4">รวมจากรายการงาน (${sorted.length} งาน)</td><td style="text-align:right;font-weight:700;">${jobsTotal.toLocaleString()}</td></tr>
-          ${hist ? `<tr><td colspan="4" style="color:var(--ink-soft);">+ ยอดขายย้อนหลังที่นำเข้าจากรายงานเก่า (ไม่มีรายละเอียดระดับงาน)</td><td style="text-align:right;color:var(--ink-soft);">${hist.toLocaleString()}</td></tr>` : ''}
-          <tr><td colspan="4" style="font-weight:700;">รวมทั้งหมด</td><td style="text-align:right;font-weight:700;">${(jobsTotal+hist).toLocaleString()}</td></tr>
+          <tr><td colspan="4">รวมจากรายการงาน (${sorted.length} งาน)</td><td style="text-align:right;font-weight:700;">${jobsTotal.toLocaleString()}</td><td></td></tr>
+          ${showHist && hist ? `<tr><td colspan="4" style="color:var(--ink-soft);">+ ยอดขายย้อนหลังที่นำเข้าจากรายงานเก่า (ไม่มีรายละเอียดระดับงาน)</td><td style="text-align:right;color:var(--ink-soft);">${hist.toLocaleString()}</td><td></td></tr>` : ''}
+          <tr><td colspan="4" style="font-weight:700;">รวมทั้งหมด</td><td style="text-align:right;font-weight:700;">${(jobsTotal+(showHist?hist:0)).toLocaleString()}</td><td></td></tr>
         </tfoot>
       </table>
     </div>`;
-  $('breakdownModal').style.display = 'flex';
+}
+function filterBreakdownRows(term){
+  const input = $('breakdownSearch');
+  renderBreakdownRows(term);
+  if(input) input.focus();
+}
+function exportBreakdownExcel(){
+  if(!_lastBreakdown) return;
+  const q = _breakdownSearchTerm.trim().toLowerCase();
+  const all = (_lastBreakdown.jobsList||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const sorted = q ? all.filter(j=>(j.job||'').toLowerCase().includes(q) || (j.quote||'').toLowerCase().includes(q)) : all;
+  if(!sorted.length){ toast('ไม่มีรายการให้ดาวน์โหลด'); return; }
+  const rows = sorted.map(j=>({
+    "ชื่องาน": j.job||'',
+    "เลขใบเสนอราคา": j.quote||'',
+    "เซลล์": sellerDisplay(j),
+    "วันที่": formatDate(j.date),
+    "ประเภทลูกค้า": j.customerType||'',
+    "ยอดขาย": Number(j.salesAmount)||0,
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:30},{wch:16},{wch:12},{wch:12},{wch:16},{wch:14}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "รายละเอียดยอดขาย");
+  const safeTitle = (_lastBreakdown.title||'รายละเอียดยอดขาย').replace(/[\\/:*?"<>|]/g,'_');
+  const dateStr = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `${safeTitle}_${dateStr}.xlsx`);
+  toast('ดาวน์โหลดไฟล์ Excel แล้ว');
 }
 function closeBreakdownModal(){
   const m = $('breakdownModal');
@@ -5539,6 +5585,8 @@ setInterval(checkEmailReminders, 5*60000);
   window.showPeriodBreakdown = showPeriodBreakdown;
   window.showGroupBreakdown = showGroupBreakdown;
   window.closeBreakdownModal = closeBreakdownModal;
+  window.filterBreakdownRows = filterBreakdownRows;
+  window.exportBreakdownExcel = exportBreakdownExcel;
   window.editJobFromBreakdown = editJobFromBreakdown;
   window.markJobDuplicateReviewed = markJobDuplicateReviewed;
   window.closeDeliveryReminderPopup = closeDeliveryReminderPopup;
