@@ -3474,20 +3474,31 @@ function showGroupBreakdown(key){
   if(!entry) return;
   showSalesBreakdown(`รายละเอียดยอดขาย — ${entry.label}`, entry.jobs, entry.hist);
 }
+let _lastBreakdown = null; // { title, jobsList, histAmount } — ใช้รีเฟรชป็อปอัพนี้เองหลังกดตรวจสอบแล้ว/แก้ไข
 function showSalesBreakdown(title, jobsList, histAmount){
+  _lastBreakdown = { title, jobsList, histAmount };
   const box = $('breakdownBody');
   const titleEl = $('breakdownTitle');
   if(!box || !titleEl) return;
   titleEl.textContent = title;
   const sorted = (jobsList||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const rowsHtml = sorted.map(j=>`
-    <tr>
-      <td>${escapeHtml(j.job||'ไม่มีชื่องาน')}</td>
+  const rowsHtml = sorted.map(j=>{
+    const dups = findExistingDuplicatesFor(j);
+    const warnHtml = dups.length ? `
+      <div style="margin-top:4px;background:#FDECEA;border:1px solid #F1948A;border-radius:6px;padding:4px 8px;font-size:11px;color:#B03A2E;">
+        ⚠ อาจซ้ำกับ "${escapeHtml(dups[0].job||'ไม่มีชื่องาน')}" (${(Number(dups[0].salesAmount)||0).toLocaleString()} บาท)
+        <button onclick="window.editJobFromBreakdown('${j.id}')" style="margin-left:6px;padding:1px 7px;font-size:10.5px;border:1px solid #B03A2E;background:#fff;color:#B03A2E;border-radius:10px;cursor:pointer;">✎ แก้ไข</button>
+        <button onclick="window.markJobDuplicateReviewed('${j.id}')" style="margin-left:4px;padding:1px 7px;font-size:10.5px;border:1px solid #1E7A44;background:#fff;color:#1E7A44;border-radius:10px;cursor:pointer;">✓ ตรวจสอบแล้ว</button>
+      </div>` : '';
+    return `
+    <tr style="${dups.length ? 'background:#FDECEA;' : ''}">
+      <td>${escapeHtml(j.job||'ไม่มีชื่องาน')}${warnHtml}</td>
       <td>${sellerDisplay(j)}</td>
       <td>${formatDate(j.date)}</td>
       <td>${escapeHtml(j.customerType||'-')}</td>
       <td style="text-align:right;">${(Number(j.salesAmount)||0).toLocaleString()}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   const jobsTotal = sorted.reduce((s,j)=>s+(Number(j.salesAmount)||0),0);
   const hist = Math.max(0, Math.round(histAmount||0));
   box.innerHTML = `
@@ -5128,6 +5139,31 @@ function findPossibleDuplicateSales(common, excludeId){
   });
 }
 
+// หางานอื่นที่อาจซ้ำกับงาน "ที่มีอยู่แล้ว" งานหนึ่ง — ใช้ในตารางสรุป/รายละเอียดยอดขาย ไม่ใช่ตอนบันทึกใหม่
+// ถ้างานนี้ถูกกดตรวจสอบแล้ว (duplicateReviewed) จะไม่เตือนซ้ำอีก
+function findExistingDuplicatesFor(job){
+  if(job.duplicateReviewed) return [];
+  return jobs.filter(other=>{
+    if(other.id===job.id) return false;
+    if(other.cancelled) return false;
+    return isLikelyDuplicateSale(job, other);
+  });
+}
+
+function editJobFromBreakdown(id){
+  closeBreakdownModal();
+  openModal(id);
+}
+
+async function markJobDuplicateReviewed(id){
+  const j = jobs.find(x=>x.id===id);
+  if(!j) return;
+  j.duplicateReviewed = true;
+  await saveSingleJob(id);
+  toast('✓ ตรวจสอบแล้ว ไม่แจ้งเตือนซ้ำอีก');
+  if(_lastBreakdown) showSalesBreakdown(_lastBreakdown.title, _lastBreakdown.jobsList, _lastBreakdown.histAmount);
+}
+
 // คืน Promise<boolean> — true = ให้บันทึกต่อได้ (ไม่พบ/ผู้ใช้ยืนยันว่าไม่ซ้ำ), false = ยกเลิกการบันทึก
 function checkSalesDuplicate(common, excludeId){
   return new Promise(resolve=>{
@@ -5503,6 +5539,8 @@ setInterval(checkEmailReminders, 5*60000);
   window.showPeriodBreakdown = showPeriodBreakdown;
   window.showGroupBreakdown = showGroupBreakdown;
   window.closeBreakdownModal = closeBreakdownModal;
+  window.editJobFromBreakdown = editJobFromBreakdown;
+  window.markJobDuplicateReviewed = markJobDuplicateReviewed;
   window.closeDeliveryReminderPopup = closeDeliveryReminderPopup;
   window.closeOverdueDeliveryPopup = closeOverdueDeliveryPopup;
   window.closeOutboundFollowUpPopup = closeOutboundFollowUpPopup;
