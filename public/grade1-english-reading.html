@@ -584,61 +584,62 @@
         ];
 
         // Render Phonics with Filtering & Touch-optimized cards
-        // Maps each phonics family to a short display label and a TTS-friendly
-        // approximation of the isolated sound. Browser speech synthesis reads a bare
-        // 2-letter string like "og" as spelled-out letters ("O-G") instead of blending
-        // it, so short rimes get a doubled ending consonant (the same real-word pattern
-        // as "egg"/"odd"/"add") which reliably makes the engine blend the sound instead.
+        // Maps each phonics family to a short display label and a TTS-friendly sound.
+        // Browser speech synthesis has no phoneme control (no SSML support) and reads a
+        // bare fragment like "og" or "bluh" as spelled-out letters on many voices, so
+        // soundText is always a real, common dictionary word that starts with that exact
+        // sound family (and is one of the words shown below it) — real words are always
+        // pronounced correctly, unlike invented letter strings.
         const familySoundMap = {
-            "-at family": { label: "at", soundText: "at" },
-            "-og family": { label: "og", soundText: "ogg" },
-            "-ig family": { label: "ig", soundText: "igg" },
-            "-un family": { label: "un", soundText: "unn" },
-            "-en family": { label: "en", soundText: "enn" },
-            "-ed family": { label: "ed", soundText: "edd" },
-            "-it family": { label: "it", soundText: "it" },
-            "-up family": { label: "up", soundText: "up" },
-            "-ox family": { label: "ox", soundText: "ox" },
-            "-ap family": { label: "ap", soundText: "app" },
-            "-in family": { label: "in", soundText: "inn" },
+            "-at family": { label: "at", soundText: "cat" },
+            "-og family": { label: "og", soundText: "dog" },
+            "-ig family": { label: "ig", soundText: "pig" },
+            "-un family": { label: "un", soundText: "sun" },
+            "-en family": { label: "en", soundText: "pen" },
+            "-ed family": { label: "ed", soundText: "bed" },
+            "-it family": { label: "it", soundText: "sit" },
+            "-up family": { label: "up", soundText: "cup" },
+            "-ox family": { label: "ox", soundText: "box" },
+            "-ap family": { label: "ap", soundText: "map" },
+            "-in family": { label: "in", soundText: "pin" },
 
-            "Magic E (a_e)": { label: "a_e", soundText: "ay" },
-            "Magic E (i_e)": { label: "i_e", soundText: "eye" },
-            "Magic E (o_e)": { label: "o_e", soundText: "oh" },
-            "Magic E (u_e)": { label: "u_e", soundText: "you" },
-            "Vowel Team (ee)": { label: "ee", soundText: "eee" },
-            "Vowel Team (ai)": { label: "ai", soundText: "ay" },
-            "Vowel Team (oa)": { label: "oa", soundText: "oh" },
-            "Vowel Team (ow)": { label: "ow", soundText: "oh" },
-            "Vowel Team (ay)": { label: "ay", soundText: "ay" },
-            "Vowel Team (ie)": { label: "ie", soundText: "eye" },
+            "Magic E (a_e)": { label: "a_e", soundText: "cake" },
+            "Magic E (i_e)": { label: "i_e", soundText: "bike" },
+            "Magic E (o_e)": { label: "o_e", soundText: "home" },
+            "Magic E (u_e)": { label: "u_e", soundText: "cube" },
+            "Vowel Team (ee)": { label: "ee", soundText: "tree" },
+            "Vowel Team (ai)": { label: "ai", soundText: "rain" },
+            "Vowel Team (oa)": { label: "oa", soundText: "boat" },
+            "Vowel Team (ow)": { label: "ow", soundText: "snow" },
+            "Vowel Team (ay)": { label: "ay", soundText: "play" },
+            "Vowel Team (ie)": { label: "ie", soundText: "pie" },
 
-            "bl- blend": { label: "bl", soundText: "bluh" },
-            "fr- blend": { label: "fr", soundText: "fruh" },
-            "fl- blend": { label: "fl", soundText: "fluh" },
-            "st- blend": { label: "st", soundText: "stuh" },
-            "pl- blend": { label: "pl", soundText: "pluh" },
-            "sl- blend": { label: "sl", soundText: "sluh" },
-            "gr- blend": { label: "gr", soundText: "gruh" },
-            "dr- blend": { label: "dr", soundText: "druh" },
-            "cr- blend": { label: "cr", soundText: "cruh" },
-            "tr- blend": { label: "tr", soundText: "truh" },
-            "br- blend": { label: "br", soundText: "bruh" },
-            "sn- blend": { label: "sn", soundText: "snuh" },
-            "sw- blend": { label: "sw", soundText: "swuh" },
-            "sp- blend": { label: "sp", soundText: "spuh" },
-            "sk- blend": { label: "sk", soundText: "skuh" },
-            "sm- blend": { label: "sm", soundText: "smuh" },
-            "tw- blend": { label: "tw", soundText: "twuh" },
-            "gl- blend": { label: "gl", soundText: "gluh" },
-            "cl- blend": { label: "cl", soundText: "cluh" },
+            "bl- blend": { label: "bl", soundText: "blue" },
+            "fr- blend": { label: "fr", soundText: "frog" },
+            "fl- blend": { label: "fl", soundText: "flag" },
+            "st- blend": { label: "st", soundText: "star" },
+            "pl- blend": { label: "pl", soundText: "plum" },
+            "sl- blend": { label: "sl", soundText: "slide" },
+            "gr- blend": { label: "gr", soundText: "green" },
+            "dr- blend": { label: "dr", soundText: "drum" },
+            "cr- blend": { label: "cr", soundText: "crab" },
+            "tr- blend": { label: "tr", soundText: "truck" },
+            "br- blend": { label: "br", soundText: "bring" },
+            "sn- blend": { label: "sn", soundText: "snake" },
+            "sw- blend": { label: "sw", soundText: "swim" },
+            "sp- blend": { label: "sp", soundText: "spoon" },
+            "sk- blend": { label: "sk", soundText: "skate" },
+            "sm- blend": { label: "sm", soundText: "smile" },
+            "tw- blend": { label: "tw", soundText: "twin" },
+            "gl- blend": { label: "gl", soundText: "glue" },
+            "cl- blend": { label: "cl", soundText: "clock" },
 
-            "sh digraph": { label: "sh", soundText: "shh" },
-            "ch digraph": { label: "ch", soundText: "chuh" },
-            "th digraph": { label: "th", soundText: "thuh" },
-            "wh digraph": { label: "wh", soundText: "whuh" },
-            "ph digraph": { label: "ph", soundText: "fuh" },
-            "ng digraph": { label: "ng", soundText: "ing" }
+            "sh digraph": { label: "sh", soundText: "fish" },
+            "ch digraph": { label: "ch", soundText: "chair" },
+            "th digraph": { label: "th", soundText: "thumb" },
+            "wh digraph": { label: "wh", soundText: "whale" },
+            "ph digraph": { label: "ph", soundText: "phone" },
+            "ng digraph": { label: "ng", soundText: "ring" }
         };
 
         const categoryThaiLabel = {
@@ -686,7 +687,7 @@
         function openPhonicsFamily(category, family) {
             const info = familySoundMap[family] || { label: family, soundText: family };
             currentFamilySoundText = info.soundText;
-            speakText(info.soundText, 1.15);
+            speakText(info.soundText + '.', 1.05);
 
             document.getElementById('phonics-family-view').classList.add('hidden');
             document.getElementById('phonics-word-view').classList.remove('hidden');
@@ -698,7 +699,7 @@
         }
 
         function replayFamilySound() {
-            if (currentFamilySoundText) speakText(currentFamilySoundText, 1.15);
+            if (currentFamilySoundText) speakText(currentFamilySoundText + '.', 1.05);
         }
 
         function closePhonicsFamily() {
@@ -1009,7 +1010,11 @@
         }
 
         function practiceItem(text, key) {
-            speakText(text);
+            // A trailing period stops the speech engine from clipping the last
+            // sound of the word/sentence (e.g. the closing "p" in "cup"), and a
+            // slightly gentler rate gives closing consonants time to be heard.
+            const spoken = /[.!?]$/.test(text) ? text : text + '.';
+            speakText(spoken, 0.9);
             markLearned(key, 1);
         }
 
