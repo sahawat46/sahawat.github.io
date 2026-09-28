@@ -686,7 +686,7 @@
         function openPhonicsFamily(category, family) {
             const info = familySoundMap[family] || { label: family, soundText: family };
             currentFamilySoundText = info.soundText;
-            speakText(info.soundText);
+            speakText(info.soundText, 1.15);
 
             document.getElementById('phonics-family-view').classList.add('hidden');
             document.getElementById('phonics-word-view').classList.remove('hidden');
@@ -698,7 +698,7 @@
         }
 
         function replayFamilySound() {
-            if (currentFamilySoundText) speakText(currentFamilySoundText);
+            if (currentFamilySoundText) speakText(currentFamilySoundText, 1.15);
         }
 
         function closePhonicsFamily() {
@@ -932,12 +932,12 @@
         }
 
         // Text-to-Speech function (Optimized for iOS / iPad / Android)
-        function speakText(text) {
+        function speakText(text, rate = 1) {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'en-US';
-                utterance.rate = 0.8; // Slower rate for Grade 1 children
+                utterance.rate = rate; // 1 = normal pace, crisper than the old slowed-down 0.8
                 window.speechSynthesis.speak(utterance);
             } else {
                 console.warn('Speech synthesis not supported in this browser.');
