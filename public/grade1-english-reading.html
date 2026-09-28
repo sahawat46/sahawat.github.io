@@ -184,6 +184,11 @@
                         <p id="pet-mood-text" class="mt-2 font-bold text-lg text-pink-700 text-center"></p>
                     </div>
 
+                    <div id="pet-action-scene" class="hidden items-center justify-center gap-3 mt-3 bg-white/80 border-2 border-dashed border-pink-300 rounded-2xl py-3 px-4">
+                        <span id="pet-action-emoji" class="text-4xl"></span>
+                        <span id="pet-action-text" class="font-bold text-pink-700 text-sm sm:text-base"></span>
+                    </div>
+
                     <div id="pet-stats" class="grid grid-cols-2 gap-3 mt-5 max-w-md mx-auto">
                         <!-- Injected by JavaScript -->
                     </div>
@@ -944,10 +949,28 @@
             { id: 'dog', name: 'น้องหมา', emoji: '🐶' },
             { id: 'cat', name: 'น้องแมว', emoji: '🐱' },
             { id: 'raccoon', name: 'น้องแรคคูน', emoji: '🦝' },
-            { id: 'naga', name: 'น้องนาค', emoji: '🐉' },
+            { id: 'otter', name: 'น้องนาก', emoji: '🦦' },
             { id: 'capybara', name: 'น้องคาปิบารา', emoji: '🦫' },
             { id: 'rabbit', name: 'น้องกระต่าย', emoji: '🐰' }
         ];
+
+        // What each pet eats and plays with, shown during the feed/play action animation
+        const petFoodMap = {
+            cat: { emoji: '🐟', label: 'ปลา' },
+            dog: { emoji: '🍗', label: 'น่องไก่' },
+            otter: { emoji: '🐟', label: 'ปลา' },
+            raccoon: { emoji: '🫐', label: 'เบอร์รี่' },
+            capybara: { emoji: '🌿', label: 'หญ้า' },
+            rabbit: { emoji: '🥕', label: 'แครอท' }
+        };
+        const petToyMap = {
+            cat: { emoji: '🎣', label: 'ไม้ตกแมว' },
+            dog: { emoji: '⚽', label: 'ลูกบอล' },
+            otter: { emoji: '🏐🌊', label: 'ลูกบอลในน้ำ' },
+            raccoon: { emoji: '🪀', label: 'โยโย่' },
+            capybara: { emoji: '🧸', label: 'ตุ๊กตา' },
+            rabbit: { emoji: '🥎', label: 'ลูกบอลเด้ง' }
+        };
 
         let coins = localStorage.getItem('grade1_coins') ? parseInt(localStorage.getItem('grade1_coins')) : 0;
         let petType = localStorage.getItem('grade1_pet_type') || null;
@@ -1003,7 +1026,7 @@
         function choosePet(id) {
             petType = id;
             localStorage.setItem('grade1_pet_type', id);
-            petStats = { hunger: 70, clean: 70, happy: 70, energy: 70 };
+            petStats = { hunger: 50, clean: 50, happy: 50, energy: 50 };
             savePetStats();
             showPetHome();
         }
@@ -1032,6 +1055,11 @@
             document.getElementById('pet-mood-text').textContent = `${p.name} - ${mood}`;
         }
 
+        // Each stat is a "power gauge" of 8 segments: one matching action fills exactly
+        // one segment (100 / 8 = 12.5), so it takes 8 feeds to go from empty to full.
+        const PET_STAT_STEP = 12.5;
+        const PET_STAT_SEGMENTS = 8;
+
         function renderPetStats() {
             const statsInfo = [
                 { key: 'hunger', label: 'อิ่มท้อง', emoji: '🍖', color: 'bg-orange-400' },
@@ -1039,14 +1067,61 @@
                 { key: 'happy', label: 'ความสุข', emoji: '💖', color: 'bg-pink-400' },
                 { key: 'energy', label: 'พลังงาน', emoji: '⚡', color: 'bg-yellow-400' }
             ];
-            document.getElementById('pet-stats').innerHTML = statsInfo.map(s => `
-                <div class="bg-gray-50 rounded-2xl p-3 border border-gray-200">
-                    <p class="text-xs font-bold text-gray-600 mb-1">${s.emoji} ${s.label}</p>
-                    <div class="w-full bg-gray-200 rounded-full h-3">
-                        <div class="${s.color} h-3 rounded-full transition-all" style="width:${Math.max(0, Math.min(100, petStats[s.key]))}%"></div>
+            document.getElementById('pet-stats').innerHTML = statsInfo.map(s => {
+                const value = Math.max(0, Math.min(100, petStats[s.key]));
+                const filled = Math.round(value / PET_STAT_STEP);
+                const pips = Array.from({ length: PET_STAT_SEGMENTS }).map((_, i) =>
+                    `<div class="flex-1 h-4 rounded-sm ${i < filled ? s.color : 'bg-gray-200'}"></div>`
+                ).join('');
+                return `
+                    <div class="bg-gray-50 rounded-2xl p-3 border border-gray-200">
+                        <p class="text-xs font-bold text-gray-600 mb-1">${s.emoji} ${s.label}</p>
+                        <div class="flex gap-1">${pips}</div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
+        }
+
+        // Shows a short emoji "scene" (pet + food/toy/bath/bed) with a caption so each
+        // action feels like something is really happening, not just a stat number moving.
+        function showPetAction(action) {
+            const p = petTypes.find(x => x.id === petType);
+            if (!p) return;
+            const scene = document.getElementById('pet-action-scene');
+            const emojiEl = document.getElementById('pet-action-emoji');
+            const textEl = document.getElementById('pet-action-text');
+
+            let emoji = '';
+            let text = '';
+            if (action === 'feed') {
+                const food = petFoodMap[petType] || { emoji: '🍎', label: 'อาหาร' };
+                emoji = `${p.emoji} ${food.emoji}`;
+                text = `${p.name}กำลังกิน${food.label}... อร่อยจัง!`;
+            } else if (action === 'bathe') {
+                emoji = `🛁 ${p.emoji} 🫧`;
+                text = `${p.name}กำลังอาบน้ำ... สะอาดสะอ้าน!`;
+            } else if (action === 'play') {
+                const toy = petToyMap[petType] || { emoji: '🎾', label: 'ของเล่น' };
+                emoji = `${p.emoji} ${toy.emoji}`;
+                text = `${p.name}กำลังเล่น${toy.label}... สนุกจัง!`;
+            } else if (action === 'sleep') {
+                emoji = `${p.emoji} 💤 🌙`;
+                text = `${p.name}กำลังนอนหลับสบาย... ฝันดีนะ`;
+            }
+
+            emojiEl.textContent = emoji;
+            textEl.textContent = text;
+            scene.classList.remove('hidden');
+            scene.classList.add('flex');
+            scene.classList.remove('pop-in');
+            void scene.offsetWidth;
+            scene.classList.add('pop-in');
+
+            clearTimeout(showPetAction._timer);
+            showPetAction._timer = setTimeout(() => {
+                scene.classList.add('hidden');
+                scene.classList.remove('flex');
+            }, 2200);
         }
 
         function petAction(action) {
@@ -1059,17 +1134,18 @@
             coins -= cost;
             saveCoins();
 
-            if (action === 'feed') petStats.hunger = Math.min(100, petStats.hunger + 30);
-            if (action === 'bathe') petStats.clean = Math.min(100, petStats.clean + 30);
+            if (action === 'feed') petStats.hunger = Math.min(100, petStats.hunger + PET_STAT_STEP);
+            if (action === 'bathe') petStats.clean = Math.min(100, petStats.clean + PET_STAT_STEP);
             if (action === 'play') {
-                petStats.happy = Math.min(100, petStats.happy + 25);
-                petStats.energy = Math.max(0, petStats.energy - 10);
+                petStats.happy = Math.min(100, petStats.happy + PET_STAT_STEP);
+                petStats.energy = Math.max(0, petStats.energy - 6);
             }
-            if (action === 'sleep') petStats.energy = Math.min(100, petStats.energy + 35);
+            if (action === 'sleep') petStats.energy = Math.min(100, petStats.energy + PET_STAT_STEP);
 
             savePetStats();
             renderPetSprite();
             renderPetStats();
+            showPetAction(action);
 
             const sprite = document.getElementById('pet-sprite');
             sprite.classList.add('pop-in');
