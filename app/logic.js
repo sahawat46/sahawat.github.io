@@ -185,6 +185,7 @@ function toast(msg){
 let _sb = supabase;          // Supabase client
 let _useSupabase = true;
 let _editingVersion = null; // สำหรับ optimistic locking
+let _editingSnapshot = null; // ค่าฟอร์มตอนเปิด — ใช้เทียบว่าผู้ใช้แก้ช่องไหนเองบ้าง ตอนรวมข้อมูลกรณีชนกัน
 let _realtimeChannel = null;
 
 function sbClient(){ return _sb; }
@@ -352,6 +353,34 @@ async function saveJobs(){
   }catch(e){ console.error('saveJobs',e); toast("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"); }
 }
 
+const JOB_FIELD_LABELS = { seller:'ผู้ขาย', manager:'ผู้จัดการ', date:'วันที่', quote:'เลขใบเสนอราคา', job:'ชื่องาน', detail:'รายละเอียด', type:'ตัวเลือก', status:'สถานะ', deliveryDate:'วันที่ส่งงาน', salesAmount:'ยอดขาย', qty:'จำนวนตัว', productItems:'รายการสินค้า', customerType:'ประเภทลูกค้า', countInSales:'นับเป็นยอดขาย', leadId:'ลูกค้า (Lead)' };
+// เมื่อชนกัน (conflict) — ดึงเวอร์ชันล่าสุดจาก DB มา "รวม" กับสิ่งที่พิมพ์ค้างอยู่ในฟอร์ม:
+// ช่องที่ผู้ใช้ไม่ได้แก้เอง (ค่ายังตรงกับตอนเปิดฟอร์ม) จะอัปเดตเป็นของอีกฝ่าย
+// ช่องที่ผู้ใช้แก้เองแล้ว จะเก็บค่าที่พิมพ์ไว้ (ไม่ถูกทับ) — ไม่ต้องพิมพ์ใหม่ทั้งฟอร์ม
+async function mergeConflictKeepEditing(jobId){
+  const { data } = await _sb.from('jobs').select('*').eq('id',jobId).maybeSingle();
+  const j = jobs.find(x=>x.id===jobId);
+  if(!data || !j){ toast('ไม่พบงานนี้แล้ว (อาจถูกลบไปแล้ว)'); await loadJobs(); closeModal(); return; }
+  const remote = dbRowToJob(data);
+  const before = _editingSnapshot || {};
+  const updatedFromOther = [];
+  EDITABLE_JOB_FIELDS.forEach(f=>{
+    const untouched = JSON.stringify(before[f]) === JSON.stringify(j[f]);
+    if(untouched){
+      if(JSON.stringify(remote[f]) !== JSON.stringify(before[f])) updatedFromOther.push(f);
+      j[f] = remote[f];
+    } // ถ้าผู้ใช้แก้ช่องนี้เอง ให้คงค่าที่พิมพ์ไว้ ไม่ทับด้วยของอีกฝ่าย
+  });
+  j._v = remote._v;
+  _editingVersion = remote._v;
+  _editingSnapshot = snapshotEditableFields(j);
+  populateModalFields(j);
+  if(updatedFromOther.length){
+    toast(`🔄 รวมข้อมูลแล้ว — อัปเดตช่อง: ${updatedFromOther.map(f=>JOB_FIELD_LABELS[f]||f).join(', ')} จากคนอื่น (ช่องที่คุณแก้เองยังเก็บไว้เหมือนเดิม) กดบันทึกอีกครั้งได้เลยค่ะ`, 6000);
+  } else {
+    toast('🔄 รวมข้อมูลแล้ว กดบันทึกอีกครั้งได้เลยค่ะ', 3000);
+  }
+}
 // บันทึกงานเดียว (พร้อม conflict check)
 async function saveSingleJob(jobId, forceOverwrite=false){
   const j = jobs.find(x=>x.id===jobId);
@@ -366,7 +395,8 @@ async function saveSingleJob(jobId, forceOverwrite=false){
           $('conflictMsg').innerHTML =
             `งานนี้ถูกแก้ไขโดย <b>${escapeHtml(conflict.by||'คนอื่น')}</b><br>
              เมื่อ ${new Date(conflict.at).toLocaleString('th-TH')}<br>
-             หากบันทึกทับ การแก้ไขของอีกฝ่ายจะหายไป`;
+             "บันทึกทับ" = ใช้ข้อมูลที่คุณพิมพ์ทั้งหมด ของอีกฝ่ายจะหายไป<br>
+             "รวมข้อมูลอัตโนมัติ" = เก็บเฉพาะช่องที่คุณแก้เองไว้ ส่วนช่องที่คุณไม่ได้แตะจะอัปเดตเป็นของอีกฝ่าย (ไม่ต้องพิมพ์ใหม่)`;
           $('conflictDialog').style.display='flex';
           $('conflictOverwrite').onclick=async()=>{
             $('conflictDialog').style.display='none';
@@ -374,7 +404,7 @@ async function saveSingleJob(jobId, forceOverwrite=false){
           };
           $('conflictReload').onclick=async()=>{
             $('conflictDialog').style.display='none';
-            await loadJobs(); closeModal(); resolve(false);
+            await mergeConflictKeepEditing(jobId); resolve(false);
           };
           $('conflictCancel').onclick=async()=>{
             $('conflictDialog').style.display='none';
@@ -4770,15 +4800,42 @@ function closeOverdueDeliveryPopup(){
 }
 
 
+// ช่องที่แก้ไขได้ในฟอร์มงาน — ใช้ทั้งตอนเปิดฟอร์มและตอนรวมข้อมูลกรณีชนกัน (conflict merge)
+const EDITABLE_JOB_FIELDS = ['seller','manager','date','quote','job','detail','type','status','deliveryDate','salesAmount','qty','productItems','customerType','countInSales','leadId'];
+function snapshotEditableFields(j){
+  const snap = {};
+  EDITABLE_JOB_FIELDS.forEach(f=>{ snap[f] = f==='productItems' ? JSON.parse(JSON.stringify(j.productItems||[])) : j[f]; });
+  return snap;
+}
+function populateModalFields(j){
+  $("f_seller").value = j.seller;
+  if($("f_manager")) $("f_manager").value = j.manager || j.seller || "";
+  $("f_date").value = j.date || "";
+  $("f_quote").value = j.quote || "";
+  $("f_jobname").value = j.job || "";
+  $("f_detail").value = j.detail || "";
+  $("f_type").value = j.type || "ตัวอย่าง";
+  $("f_status").value = j.status || "";
+  $("f_deliveryDate").value = j.deliveryDate || "";
+  $("f_salesAmount").value = j.salesAmount || "";
+  $("f_qty").value = j.qty || "";
+  renderProductRows(j.productItems || []);
+  $("f_customerType").value = j.customerType || CUSTOMER_TYPES[0];
+  $("f_countInSales").checked = j.countInSales !== false;
+  $("f_leadId").value = j.leadId || "";
+  setLeadField(j.leadId || "");
+}
 async function openModal(id){
   editingId = id || null;
   _editingVersion = null;
+  _editingSnapshot = null;
   $("modalTitle").textContent = id ? "แก้ไขงาน" : "เพิ่มงานใหม่";
   populateJobLeadSelect();
   if(id){
     const j = jobs.find(x=>x.id===id);
-    // บันทึก version สำหรับ conflict detection
+    // บันทึก version + ค่าฟอร์มตอนเปิด สำหรับ conflict detection/merge
     _editingVersion = j?._v || 1;
+    _editingSnapshot = snapshotEditableFields(j);
     // ขอ lock (ถ้าใช้ Supabase)
     if(_useSupabase){
       const lockResult = await acquireLock(id);
@@ -4788,22 +4845,7 @@ async function openModal(id){
         }
       }
     }
-    $("f_seller").value = j.seller;
-    if($("f_manager")) $("f_manager").value = j.manager || j.seller || "";
-    $("f_date").value = j.date || "";
-    $("f_quote").value = j.quote || "";
-    $("f_jobname").value = j.job || "";
-    $("f_detail").value = j.detail || "";
-    $("f_type").value = j.type || "ตัวอย่าง";
-    $("f_status").value = j.status || "";
-    $("f_deliveryDate").value = j.deliveryDate || "";
-    $("f_salesAmount").value = j.salesAmount || "";
-    $("f_qty").value = j.qty || "";
-    renderProductRows(j.productItems || []);
-    $("f_customerType").value = j.customerType || CUSTOMER_TYPES[0];
-    $("f_countInSales").checked = j.countInSales !== false;
-    $("f_leadId").value = j.leadId || "";
-    setLeadField(j.leadId || "");
+    populateModalFields(j);
   }else{
     $("f_seller").value = currentUser?.name || SELLERS[0];
     if($("f_manager")){ const defMgr = (currentUser?.role==="manager" ? currentUser.name : (users.find(u=>u.role==="manager"&&u.active!==false)||{}).name) || DEFAULT_MANAGERS[0]; $("f_manager").value = defMgr; }
@@ -4829,6 +4871,7 @@ function closeModal(){
   if(editingId && _useSupabase) releaseLock(editingId);
   editingId = null;
   _editingVersion = null;
+  _editingSnapshot = null;
 }
 
 // ข้อ: คัดลอกงาน — เปิดฟอร์ม "เพิ่มงานใหม่" โดยกรอกข้อมูลจากงานเดิมไว้ล่วงหน้า (เช่น อ้างอิงเลขที่ใบเสนอราคาเดิม แต่เพิ่มจำนวน)
@@ -4837,6 +4880,7 @@ async function copyJob(id){
   if(!src) return;
   editingId = null;
   _editingVersion = null;
+  _editingSnapshot = null;
   $("modalTitle").textContent = "คัดลอกงาน (สร้างใบงานใหม่)";
   populateJobLeadSelect();
   $("f_seller").value = src.seller;

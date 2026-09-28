@@ -541,7 +541,7 @@ alter publication supabase_realtime add table leads;</pre>
     <p id="conflictMsg" style={{"fontSize":"13.5px","color":"#4A3B30","lineHeight":"1.6","marginBottom":"20px"}}></p>
     <div style={{"display":"flex","gap":"10px"}}>
       <button id="conflictOverwrite" style={{"flex":"1","padding":"10px","background":"#C0392B","color":"#fff","border":"none","borderRadius":"8px","fontSize":"13px","fontWeight":"700","cursor":"pointer"}}>บันทึกทับ</button>
-      <button id="conflictReload" style={{"flex":"1","padding":"10px","background":"#5B6B22","color":"#fff","border":"none","borderRadius":"8px","fontSize":"13px","cursor":"pointer"}}>โหลดข้อมูลใหม่</button>
+      <button id="conflictReload" style={{"flex":"1","padding":"10px","background":"#5B6B22","color":"#fff","border":"none","borderRadius":"8px","fontSize":"13px","cursor":"pointer"}}>รวมข้อมูลอัตโนมัติ</button>
       <button id="conflictCancel" style={{"padding":"10px 16px","background":"#F5F2EA","border":"1px solid #C9C2AE","borderRadius":"8px","fontSize":"13px","cursor":"pointer"}}>ยกเลิก</button>
     </div>
   </div>
