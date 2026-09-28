@@ -584,35 +584,42 @@
         ];
 
         // Render Phonics with Filtering & Touch-optimized cards
-        // Maps each phonics family to a short display label and a TTS-friendly sound.
-        // Browser speech synthesis has no phoneme control (no SSML support) and reads a
-        // bare fragment like "og" or "bluh" as spelled-out letters on many voices, so
-        // soundText is always a real, common dictionary word that starts with that exact
-        // sound family (and is one of the words shown below it) — real words are always
-        // pronounced correctly, unlike invented letter strings.
+        // Maps each phonics family to a short display label and the text actually sent
+        // to speech synthesis for the "isolated sound" card. Browser TTS has no phoneme
+        // control (no SSML), so:
+        //  - Long vowel families (Magic E / vowel teams) ARE a single letter's name
+        //    ("a" says /eɪ/, "i" says /aɪ/...) — using that exact real word ("ay", "eye",
+        //    "oh", "you") plays the pure isolated vowel sound, not a whole vocabulary word.
+        //  - Short-vowel rimes that already ARE standalone real words (at/it/up/in/ox) are
+        //    spoken as themselves — that IS the pure rime sound, nothing added.
+        //  - Rimes/blends/digraphs that are NOT real words on their own (og, ig, un, en,
+        //    ed, ap, bl, sh, th...) cannot be isolated at all by a TTS engine — any bare
+        //    fragment risks being read as spelled-out letters — so those use the shortest
+        //    real dictionary word that starts with that exact sound (also the first word
+        //    shown in the list below), which is the closest reliable approximation.
         const familySoundMap = {
-            "-at family": { label: "at", soundText: "cat" },
+            "-at family": { label: "at", soundText: "at" },
             "-og family": { label: "og", soundText: "dog" },
             "-ig family": { label: "ig", soundText: "pig" },
             "-un family": { label: "un", soundText: "sun" },
             "-en family": { label: "en", soundText: "pen" },
             "-ed family": { label: "ed", soundText: "bed" },
-            "-it family": { label: "it", soundText: "sit" },
-            "-up family": { label: "up", soundText: "cup" },
-            "-ox family": { label: "ox", soundText: "box" },
+            "-it family": { label: "it", soundText: "it" },
+            "-up family": { label: "up", soundText: "up" },
+            "-ox family": { label: "ox", soundText: "ox" },
             "-ap family": { label: "ap", soundText: "map" },
-            "-in family": { label: "in", soundText: "pin" },
+            "-in family": { label: "in", soundText: "in" },
 
-            "Magic E (a_e)": { label: "a_e", soundText: "cake" },
-            "Magic E (i_e)": { label: "i_e", soundText: "bike" },
-            "Magic E (o_e)": { label: "o_e", soundText: "home" },
-            "Magic E (u_e)": { label: "u_e", soundText: "cube" },
-            "Vowel Team (ee)": { label: "ee", soundText: "tree" },
-            "Vowel Team (ai)": { label: "ai", soundText: "rain" },
-            "Vowel Team (oa)": { label: "oa", soundText: "boat" },
-            "Vowel Team (ow)": { label: "ow", soundText: "snow" },
-            "Vowel Team (ay)": { label: "ay", soundText: "play" },
-            "Vowel Team (ie)": { label: "ie", soundText: "pie" },
+            "Magic E (a_e)": { label: "a_e", soundText: "ay" },
+            "Magic E (i_e)": { label: "i_e", soundText: "eye" },
+            "Magic E (o_e)": { label: "o_e", soundText: "oh" },
+            "Magic E (u_e)": { label: "u_e", soundText: "you" },
+            "Vowel Team (ee)": { label: "ee", soundText: "eve" },
+            "Vowel Team (ai)": { label: "ai", soundText: "ay" },
+            "Vowel Team (oa)": { label: "oa", soundText: "oh" },
+            "Vowel Team (ow)": { label: "ow", soundText: "oh" },
+            "Vowel Team (ay)": { label: "ay", soundText: "ay" },
+            "Vowel Team (ie)": { label: "ie", soundText: "eye" },
 
             "bl- blend": { label: "bl", soundText: "blue" },
             "fr- blend": { label: "fr", soundText: "frog" },
