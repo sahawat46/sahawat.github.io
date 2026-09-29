@@ -586,40 +586,40 @@
         // Render Phonics with Filtering & Touch-optimized cards
         // Maps each phonics family to a short display label and the text actually sent
         // to speech synthesis for the "isolated sound" card. Browser TTS has no phoneme
-        // control (no SSML), so:
-        //  - Long vowel families (Magic E / vowel teams) ARE a single letter's name
-        //    ("a" says /eɪ/, "i" says /aɪ/...) — using that exact real word ("ay", "eye",
-        //    "oh", "you") plays the pure isolated vowel sound, not a whole vocabulary word.
-        //  - Short-vowel rimes that already ARE standalone real words (at/it/up/in/ox) are
-        //    spoken as themselves — that IS the pure rime sound, nothing added.
-        //  - Rimes/blends/digraphs that are NOT real words on their own (og, ig, un, en,
-        //    ed, ap, bl, sh, th...) cannot be isolated at all by a TTS engine — any bare
-        //    fragment risks being read as spelled-out letters — so those use the shortest
-        //    real dictionary word that starts with that exact sound (also the first word
-        //    shown in the list below), which is the closest reliable approximation.
+        // control (no SSML) and can only read real, dictionary-recognized text, so:
+        //  - Pure vowel sounds (short-vowel rimes and long vowels) have an exact, standard
+        //    Thai phonetic spelling (e.g. "og" = "อ็อก", "a_e" = long "เอ"). Thai script is
+        //    read literally and predictably by Thai TTS voices — no ambiguity like English
+        //    text has — so these play a genuinely isolated sound via `thaiSpeak` (th-TH),
+        //    and `thaiLabel` shows the same reading as text so it's correct even if a
+        //    device has no Thai voice installed.
+        //  - Blends/digraphs (bl, sh, th...) have no single-consonant Thai equivalent —
+        //    Thai doesn't have several of these sounds at all (e.g. "th" /θ/) — so those
+        //    fall back to the shortest real English dictionary word starting with that
+        //    exact sound (also the first word shown in the list below).
         const familySoundMap = {
-            "-at family": { label: "at", soundText: "at" },
-            "-og family": { label: "og", soundText: "dog" },
-            "-ig family": { label: "ig", soundText: "pig" },
-            "-un family": { label: "un", soundText: "sun" },
-            "-en family": { label: "en", soundText: "pen" },
-            "-ed family": { label: "ed", soundText: "bed" },
-            "-it family": { label: "it", soundText: "it" },
-            "-up family": { label: "up", soundText: "up" },
-            "-ox family": { label: "ox", soundText: "ox" },
-            "-ap family": { label: "ap", soundText: "map" },
-            "-in family": { label: "in", soundText: "in" },
+            "-at family": { label: "at", soundText: "at", thaiLabel: "แอ็ท", thaiSpeak: "แอ็ท" },
+            "-og family": { label: "og", soundText: "dog", thaiLabel: "อ็อก", thaiSpeak: "อ็อก" },
+            "-ig family": { label: "ig", soundText: "pig", thaiLabel: "อิก", thaiSpeak: "อิก" },
+            "-un family": { label: "un", soundText: "sun", thaiLabel: "อัน", thaiSpeak: "อัน" },
+            "-en family": { label: "en", soundText: "pen", thaiLabel: "เอ็น", thaiSpeak: "เอ็น" },
+            "-ed family": { label: "ed", soundText: "bed", thaiLabel: "เอ็ด", thaiSpeak: "เอ็ด" },
+            "-it family": { label: "it", soundText: "it", thaiLabel: "อิท", thaiSpeak: "อิท" },
+            "-up family": { label: "up", soundText: "up", thaiLabel: "อัพ", thaiSpeak: "อัพ" },
+            "-ox family": { label: "ox", soundText: "ox", thaiLabel: "อ็อกส์", thaiSpeak: "อ็อกส์" },
+            "-ap family": { label: "ap", soundText: "map", thaiLabel: "แอ็พ", thaiSpeak: "แอ็พ" },
+            "-in family": { label: "in", soundText: "in", thaiLabel: "อิน", thaiSpeak: "อิน" },
 
-            "Magic E (a_e)": { label: "a_e", soundText: "ay" },
-            "Magic E (i_e)": { label: "i_e", soundText: "eye" },
-            "Magic E (o_e)": { label: "o_e", soundText: "oh" },
-            "Magic E (u_e)": { label: "u_e", soundText: "you" },
-            "Vowel Team (ee)": { label: "ee", soundText: "eve" },
-            "Vowel Team (ai)": { label: "ai", soundText: "ay" },
-            "Vowel Team (oa)": { label: "oa", soundText: "oh" },
-            "Vowel Team (ow)": { label: "ow", soundText: "oh" },
-            "Vowel Team (ay)": { label: "ay", soundText: "ay" },
-            "Vowel Team (ie)": { label: "ie", soundText: "eye" },
+            "Magic E (a_e)": { label: "a_e", soundText: "ay", thaiLabel: "เอ (ยาวๆ)", thaiSpeak: "เอ" },
+            "Magic E (i_e)": { label: "i_e", soundText: "eye", thaiLabel: "ไอ (ยาวๆ)", thaiSpeak: "ไอ" },
+            "Magic E (o_e)": { label: "o_e", soundText: "oh", thaiLabel: "โอ (ยาวๆ)", thaiSpeak: "โอ" },
+            "Magic E (u_e)": { label: "u_e", soundText: "you", thaiLabel: "อิว (ยาวๆ)", thaiSpeak: "อิว" },
+            "Vowel Team (ee)": { label: "ee", soundText: "eve", thaiLabel: "อี (ยาวๆ)", thaiSpeak: "อี" },
+            "Vowel Team (ai)": { label: "ai", soundText: "ay", thaiLabel: "เอ (ยาวๆ)", thaiSpeak: "เอ" },
+            "Vowel Team (oa)": { label: "oa", soundText: "oh", thaiLabel: "โอ (ยาวๆ)", thaiSpeak: "โอ" },
+            "Vowel Team (ow)": { label: "ow", soundText: "oh", thaiLabel: "โอ (ยาวๆ)", thaiSpeak: "โอ" },
+            "Vowel Team (ay)": { label: "ay", soundText: "ay", thaiLabel: "เอ (ยาวๆ)", thaiSpeak: "เอ" },
+            "Vowel Team (ie)": { label: "ie", soundText: "eye", thaiLabel: "ไอ (ยาวๆ)", thaiSpeak: "ไอ" },
 
             "bl- blend": { label: "bl", soundText: "blue" },
             "fr- blend": { label: "fr", soundText: "frog" },
@@ -656,7 +656,18 @@
             "Digraphs": "ผสมเสียง"
         };
 
-        let currentFamilySoundText = '';
+        let currentFamilyInfo = null;
+
+        // Plays the isolated sound for a family: a Thai voice reading the exact Thai
+        // phonetic spelling when we have one (reliable for pure vowel sounds, since Thai
+        // script has no pronunciation ambiguity), otherwise the English carrier word.
+        function speakFamilySound(info) {
+            if (info.thaiSpeak) {
+                speakText(info.thaiSpeak, 1, 'th-TH');
+            } else {
+                speakText(info.soundText + '.', 1.05, 'en-US');
+            }
+        }
 
         // Groups phonicsData into one card per unique sound family
         function buildPhonicsFamilies(filter) {
@@ -681,6 +692,7 @@
                     <div onclick="openPhonicsFamily('${f.category}', '${f.family}')" class="card-pop bg-emerald-50 hover:bg-emerald-100 active:scale-95 border-2 border-emerald-300 p-4 rounded-3xl cursor-pointer transition text-center shadow-sm flex flex-col items-center justify-between gap-2">
                         <span class="text-[10px] sm:text-xs bg-emerald-200 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">${categoryThaiLabel[f.category] || f.category}</span>
                         <h3 class="text-3xl sm:text-4xl font-bold eng-font text-emerald-700">${info.label}</h3>
+                        ${info.thaiLabel ? `<p class="text-sm font-bold text-pink-600">อ่านว่า "${info.thaiLabel}"</p>` : ''}
                         <p class="text-[11px] text-gray-500">${f.words.length} คำศัพท์</p>
                         <div class="mt-1 text-xs text-emerald-700 font-bold bg-emerald-200/70 py-1.5 px-3 rounded-xl flex items-center justify-center gap-1 w-full">
                             🔊 แตะฟังเสียง แล้วดูคำศัพท์
@@ -693,12 +705,14 @@
         // Level 2: speak the isolated sound, then show the words that use it
         function openPhonicsFamily(category, family) {
             const info = familySoundMap[family] || { label: family, soundText: family };
-            currentFamilySoundText = info.soundText;
-            speakText(info.soundText + '.', 1.05);
+            currentFamilyInfo = info;
+            speakFamilySound(info);
 
             document.getElementById('phonics-family-view').classList.add('hidden');
             document.getElementById('phonics-word-view').classList.remove('hidden');
-            document.getElementById('phonics-word-view-title').textContent = `เสียง: ${info.label}`;
+            document.getElementById('phonics-word-view-title').textContent = info.thaiLabel
+                ? `เสียง: ${info.label} (อ่านว่า ${info.thaiLabel})`
+                : `เสียง: ${info.label}`;
 
             const words = phonicsData.filter(item => item.category === category && item.family === family);
             renderPhonicsWordList(words);
@@ -706,7 +720,7 @@
         }
 
         function replayFamilySound() {
-            if (currentFamilySoundText) speakText(currentFamilySoundText + '.', 1.05);
+            if (currentFamilyInfo) speakFamilySound(currentFamilyInfo);
         }
 
         function closePhonicsFamily() {
@@ -940,11 +954,11 @@
         }
 
         // Text-to-Speech function (Optimized for iOS / iPad / Android)
-        function speakText(text, rate = 1) {
+        function speakText(text, rate = 1, lang = 'en-US') {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'en-US';
+                utterance.lang = lang;
                 utterance.rate = rate; // 1 = normal pace, crisper than the old slowed-down 0.8
                 window.speechSynthesis.speak(utterance);
             } else {
