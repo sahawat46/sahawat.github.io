@@ -77,7 +77,7 @@
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                     <div>
                         <h2 class="text-xl sm:text-2xl md:text-3xl font-bold text-emerald-600 eng-font">Part 1: Phonics Comprehensive Curriculum</h2>
-                        <p class="text-xs sm:text-sm md:text-base text-gray-600">แตะการ์ดเสียงเพื่อฟังเสียง phonics เดี่ยวๆ ก่อน แล้วดูคำศัพท์ที่ใช้เสียงนั้นตามมา (ได้เหรียญไปเลี้ยงสัตว์ด้วยนะ!)</p>
+                        <p class="text-xs sm:text-sm md:text-base text-gray-600">แตะที่คำศัพท์เพื่อฟังเสียงออกเสียงที่ถูกต้อง พร้อมความหมายและประโยคตัวอย่าง (ได้เหรียญไปเลี้ยงสัตว์ด้วยนะ!)</p>
                     </div>
                     <!-- Filter Buttons for iPad / Mobile -->
                     <div class="flex flex-wrap gap-2 w-full lg:w-auto">
@@ -89,25 +89,9 @@
                     </div>
                 </div>
 
-                <!-- Level 1: Phonics Sound Family Cards -->
-                <div id="phonics-family-view">
-                    <div id="phonics-family-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                        <!-- Injected by JavaScript -->
-                    </div>
-                </div>
-
-                <!-- Level 2: Word List for the Chosen Sound Family -->
-                <div id="phonics-word-view" class="hidden">
-                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-emerald-50 border border-emerald-200 rounded-2xl p-3 sm:p-4">
-                        <button onclick="closePhonicsFamily()" class="bg-white hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-300 font-bold px-4 py-2 rounded-xl text-xs sm:text-sm transition shadow-xs">⬅️ กลับไปเลือกเสียง</button>
-                        <div class="flex items-center gap-2">
-                            <span id="phonics-word-view-title" class="font-bold text-emerald-700 eng-font text-lg sm:text-xl"></span>
-                            <button onclick="replayFamilySound()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-2 rounded-xl text-xs sm:text-sm transition shadow-xs">🔊 ฟังเสียงนี้อีกครั้ง</button>
-                        </div>
-                    </div>
-                    <div id="phonics-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        <!-- Injected by JavaScript -->
-                    </div>
+                <!-- Phonics Grid Layout -->
+                <div id="phonics-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <!-- Injected by JavaScript -->
                 </div>
             </div>
         </section>
@@ -584,155 +568,13 @@
         ];
 
         // Render Phonics with Filtering & Touch-optimized cards
-        // Maps each phonics family to a short display label and the text actually sent
-        // to speech synthesis for the "isolated sound" card. Browser TTS has no phoneme
-        // control (no SSML) and can only read real, dictionary-recognized text, so:
-        //  - Pure vowel sounds (short-vowel rimes and long vowels) have an exact, standard
-        //    Thai phonetic spelling (e.g. "og" = "อ็อก", "a_e" = long "เอ"). Thai script is
-        //    read literally and predictably by Thai TTS voices — no ambiguity like English
-        //    text has — so these play a genuinely isolated sound via `thaiSpeak` (th-TH),
-        //    and `thaiLabel` shows the same reading as text so it's correct even if a
-        //    device has no Thai voice installed.
-        //  - Blends/digraphs (bl, sh, th...) have no single-consonant Thai equivalent —
-        //    Thai doesn't have several of these sounds at all (e.g. "th" /θ/) — so those
-        //    fall back to the shortest real English dictionary word starting with that
-        //    exact sound (also the first word shown in the list below).
-        const familySoundMap = {
-            "-at family": { label: "at", soundText: "at", thaiLabel: "แอ็ท", thaiSpeak: "แอ็ท" },
-            "-og family": { label: "og", soundText: "dog", thaiLabel: "อ็อก", thaiSpeak: "อ็อก" },
-            "-ig family": { label: "ig", soundText: "pig", thaiLabel: "อิก", thaiSpeak: "อิก" },
-            "-un family": { label: "un", soundText: "sun", thaiLabel: "อัน", thaiSpeak: "อัน" },
-            "-en family": { label: "en", soundText: "pen", thaiLabel: "เอ็น", thaiSpeak: "เอ็น" },
-            "-ed family": { label: "ed", soundText: "bed", thaiLabel: "เอ็ด", thaiSpeak: "เอ็ด" },
-            "-it family": { label: "it", soundText: "it", thaiLabel: "อิท", thaiSpeak: "อิท" },
-            "-up family": { label: "up", soundText: "up", thaiLabel: "อัพ", thaiSpeak: "อัพ" },
-            "-ox family": { label: "ox", soundText: "ox", thaiLabel: "อ็อกส์", thaiSpeak: "อ็อกส์" },
-            "-ap family": { label: "ap", soundText: "map", thaiLabel: "แอ็พ", thaiSpeak: "แอ็พ" },
-            "-in family": { label: "in", soundText: "in", thaiLabel: "อิน", thaiSpeak: "อิน" },
-
-            "Magic E (a_e)": { label: "a_e", soundText: "ay", thaiLabel: "เอ (ยาวๆ)", thaiSpeak: "เอ" },
-            "Magic E (i_e)": { label: "i_e", soundText: "eye", thaiLabel: "ไอ (ยาวๆ)", thaiSpeak: "ไอ" },
-            "Magic E (o_e)": { label: "o_e", soundText: "oh", thaiLabel: "โอ (ยาวๆ)", thaiSpeak: "โอ" },
-            "Magic E (u_e)": { label: "u_e", soundText: "you", thaiLabel: "อิว (ยาวๆ)", thaiSpeak: "อิว" },
-            "Vowel Team (ee)": { label: "ee", soundText: "eve", thaiLabel: "อี (ยาวๆ)", thaiSpeak: "อี" },
-            "Vowel Team (ai)": { label: "ai", soundText: "ay", thaiLabel: "เอ (ยาวๆ)", thaiSpeak: "เอ" },
-            "Vowel Team (oa)": { label: "oa", soundText: "oh", thaiLabel: "โอ (ยาวๆ)", thaiSpeak: "โอ" },
-            "Vowel Team (ow)": { label: "ow", soundText: "oh", thaiLabel: "โอ (ยาวๆ)", thaiSpeak: "โอ" },
-            "Vowel Team (ay)": { label: "ay", soundText: "ay", thaiLabel: "เอ (ยาวๆ)", thaiSpeak: "เอ" },
-            "Vowel Team (ie)": { label: "ie", soundText: "eye", thaiLabel: "ไอ (ยาวๆ)", thaiSpeak: "ไอ" },
-
-            "bl- blend": { label: "bl", soundText: "blue" },
-            "fr- blend": { label: "fr", soundText: "frog" },
-            "fl- blend": { label: "fl", soundText: "flag" },
-            "st- blend": { label: "st", soundText: "star" },
-            "pl- blend": { label: "pl", soundText: "plum" },
-            "sl- blend": { label: "sl", soundText: "slide" },
-            "gr- blend": { label: "gr", soundText: "green" },
-            "dr- blend": { label: "dr", soundText: "drum" },
-            "cr- blend": { label: "cr", soundText: "crab" },
-            "tr- blend": { label: "tr", soundText: "truck" },
-            "br- blend": { label: "br", soundText: "bring" },
-            "sn- blend": { label: "sn", soundText: "snake" },
-            "sw- blend": { label: "sw", soundText: "swim" },
-            "sp- blend": { label: "sp", soundText: "spoon" },
-            "sk- blend": { label: "sk", soundText: "skate" },
-            "sm- blend": { label: "sm", soundText: "smile" },
-            "tw- blend": { label: "tw", soundText: "twin" },
-            "gl- blend": { label: "gl", soundText: "glue" },
-            "cl- blend": { label: "cl", soundText: "clock" },
-
-            "sh digraph": { label: "sh", soundText: "fish" },
-            "ch digraph": { label: "ch", soundText: "chair" },
-            "th digraph": { label: "th", soundText: "thumb" },
-            "wh digraph": { label: "wh", soundText: "whale" },
-            "ph digraph": { label: "ph", soundText: "phone" },
-            "ng digraph": { label: "ng", soundText: "ring" }
-        };
-
-        const categoryThaiLabel = {
-            "Short Vowels": "สระเสียงสั้น",
-            "Long Vowels": "สระเสียงยาว",
-            "Blends": "ควบกล้ำ",
-            "Digraphs": "ผสมเสียง"
-        };
-
-        let currentFamilyInfo = null;
-
-        // Plays the isolated sound for a family: a Thai voice reading the exact Thai
-        // phonetic spelling when we have one (reliable for pure vowel sounds, since Thai
-        // script has no pronunciation ambiguity), otherwise the English carrier word.
-        function speakFamilySound(info) {
-            if (info.thaiSpeak) {
-                speakText(info.thaiSpeak, 1, 'th-TH');
-            } else {
-                speakText(info.soundText + '.', 1.05, 'en-US');
-            }
-        }
-
-        // Groups phonicsData into one card per unique sound family
-        function buildPhonicsFamilies(filter) {
-            const source = filter === 'all' ? phonicsData : phonicsData.filter(item => item.category === filter);
-            const map = new Map();
-            source.forEach(item => {
-                const key = item.category + '|' + item.family;
-                if (!map.has(key)) map.set(key, { category: item.category, family: item.family, words: [] });
-                map.get(key).words.push(item);
-            });
-            return Array.from(map.values());
-        }
-
-        // Level 1: render the isolated-sound family cards
-        function renderPhonicsFamilies(filter = 'all') {
-            const grid = document.getElementById('phonics-family-grid');
-            const families = buildPhonicsFamilies(filter);
-
-            grid.innerHTML = families.map(f => {
-                const info = familySoundMap[f.family] || { label: f.family, soundText: f.family };
-                return `
-                    <div onclick="openPhonicsFamily('${f.category}', '${f.family}')" class="card-pop bg-emerald-50 hover:bg-emerald-100 active:scale-95 border-2 border-emerald-300 p-4 rounded-3xl cursor-pointer transition text-center shadow-sm flex flex-col items-center justify-between gap-2">
-                        <span class="text-[10px] sm:text-xs bg-emerald-200 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">${categoryThaiLabel[f.category] || f.category}</span>
-                        <h3 class="text-3xl sm:text-4xl font-bold eng-font text-emerald-700">${info.label}</h3>
-                        ${info.thaiLabel ? `<p class="text-sm font-bold text-pink-600">อ่านว่า "${info.thaiLabel}"</p>` : ''}
-                        <p class="text-[11px] text-gray-500">${f.words.length} คำศัพท์</p>
-                        <div class="mt-1 text-xs text-emerald-700 font-bold bg-emerald-200/70 py-1.5 px-3 rounded-xl flex items-center justify-center gap-1 w-full">
-                            🔊 แตะฟังเสียง แล้วดูคำศัพท์
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // Level 2: speak the isolated sound, then show the words that use it
-        function openPhonicsFamily(category, family) {
-            const info = familySoundMap[family] || { label: family, soundText: family };
-            currentFamilyInfo = info;
-            speakFamilySound(info);
-
-            document.getElementById('phonics-family-view').classList.add('hidden');
-            document.getElementById('phonics-word-view').classList.remove('hidden');
-            document.getElementById('phonics-word-view-title').textContent = info.thaiLabel
-                ? `เสียง: ${info.label} (อ่านว่า ${info.thaiLabel})`
-                : `เสียง: ${info.label}`;
-
-            const words = phonicsData.filter(item => item.category === category && item.family === family);
-            renderPhonicsWordList(words);
-            document.getElementById('content-phonics').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        function replayFamilySound() {
-            if (currentFamilyInfo) speakFamilySound(currentFamilyInfo);
-        }
-
-        function closePhonicsFamily() {
-            document.getElementById('phonics-word-view').classList.add('hidden');
-            document.getElementById('phonics-family-view').classList.remove('hidden');
-        }
-
-        function renderPhonicsWordList(items) {
+        function renderPhonics(filter = 'all') {
             const grid = document.getElementById('phonics-grid');
             grid.innerHTML = '';
 
-            items.forEach((item) => {
+            const filtered = filter === 'all' ? phonicsData : phonicsData.filter(item => item.category === filter);
+
+            filtered.forEach((item) => {
                 grid.innerHTML += `
                     <div onclick="practiceItem('${item.word}', 'phonics-${item.word}')" class="card-pop bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 p-4 rounded-3xl cursor-pointer transition text-center shadow-sm relative group flex flex-col justify-between">
                         <div>
@@ -769,8 +611,7 @@
                 activeBtn.className = "filter-btn px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm transition";
             }
 
-            closePhonicsFamily();
-            renderPhonicsFamilies(category);
+            renderPhonics(category);
         }
 
         // Render Sight Words
@@ -1215,7 +1056,7 @@
         }
 
         // Initial render
-        renderPhonicsFamilies('all');
+        renderPhonics('all');
         initPet();
     </script>
 </body>
