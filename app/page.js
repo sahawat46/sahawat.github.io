@@ -246,6 +246,17 @@ export default function Home() {
   </div>
 </div>
 
+{/*  ป๊อปอัพแจ้งเตือน Manager เมื่อมีคำขออนุมัติลบ (งาน/Lead) — อนุมัติ/ไม่อนุมัติได้ในป๊อปอัพนี้เลย */}
+<div id="deleteApprovalModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(0,0,0,.55)","zIndex":"9996","alignItems":"center","justifyContent":"center","padding":"16px"}}>
+  <div style={{"background":"#fff","borderTop":"6px solid #C0392B","borderRadius":"14px","maxWidth":"520px","width":"100%","padding":"22px","boxShadow":"0 12px 30px rgba(0,0,0,0.3)","maxHeight":"85vh","overflowY":"auto"}}>
+    <div style={{"fontSize":"32px","marginBottom":"6px","textAlign":"center"}}>🗑</div>
+    <h3 style={{"fontFamily":"'Kanit'","fontSize":"16.5px","margin":"0 0 6px","color":"#C0392B","textAlign":"center"}}>มีคำขออนุมัติลบข้อมูล</h3>
+    <p style={{"fontSize":"12.5px","color":"var(--ink-soft)","margin":"0 0 14px","textAlign":"center"}}>พนักงานขออนุมัติลบรายการเหล่านี้ — กดอนุมัติ/ไม่อนุมัติได้เลย มีผลทันที</p>
+    <div id="deleteApprovalList"></div>
+    <button className="btn ghost" style={{"width":"100%","marginTop":"10px"}} onClick={() => { if(window.closeDeleteApprovalPopup) window.closeDeleteApprovalPopup(); }}>ปิด (เตือนอีกครั้งทีหลัง)</button>
+  </div>
+</div>
+
 {/*  ป๊อปอัพเตือนวันนัดติดต่อลูกค้า Outbound กลับ ตอน login */}
 <div id="outboundFollowUpModal" style={{"display":"none","position":"fixed","inset":"0","background":"rgba(43,37,32,0.6)","zIndex":"310","alignItems":"center","justifyContent":"center","padding":"16px"}}>
   <div className="outbound-box">

@@ -219,10 +219,12 @@ function setupRealtime(){
       const { eventType, new:nr, old:or } = payload;
       if((nr?.updated_by||or?.updated_by) === currentUser?.name) return; // เราเองที่เปลี่ยน ไม่แจ้ง
       if(eventType==='INSERT'||eventType==='UPDATE'){
-        const j = dbRowToJob(nr);
         const idx = jobs.findIndex(x=>x.id===nr.id);
+        const wasPending = idx>=0 && jobs[idx].pendingDelete;
+        const j = dbRowToJob(nr);
         if(idx>=0) jobs[idx]=j; else jobs.unshift(j);
         toast(`🔄 ${nr.updated_by||'ระบบ'} อัปเดตงาน "${nr.job_data?.job||''}"`, 4000);
+        if(j.pendingDelete && !wasPending) checkPendingDeleteApprovals(); // พนักงานเพิ่งขออนุมัติลบ แจ้ง Manager ทันที
       } else if(eventType==='DELETE'){
         jobs = jobs.filter(x=>x.id!==or.id);
         toast(`🗑 ลบงานออกแล้ว`, 3000);
@@ -233,10 +235,12 @@ function setupRealtime(){
       const { eventType, new:nr, old:or } = payload;
       if((nr?.updated_by||or?.updated_by) === currentUser?.name) return;
       if(eventType==='INSERT'||eventType==='UPDATE'){
-        const l = dbRowToLead(nr);
         const idx = leads.findIndex(x=>x.id===nr.id);
+        const wasPending = idx>=0 && leads[idx].pendingDelete;
+        const l = dbRowToLead(nr);
         if(idx>=0) leads[idx]=l; else leads.unshift(l);
         toast(`🔄 อัปเดต Lead "${nr.lead_data?.customerName||''}"`, 3000);
+        if(l.pendingDelete && !wasPending) checkPendingDeleteApprovals(); // พนักงานเพิ่งขออนุมัติลบ แจ้ง Manager ทันที
       } else if(eventType==='DELETE'){
         leads = leads.filter(x=>x.id!==or.id);
       }
@@ -331,6 +335,7 @@ async function loadJobs(){
   setTimeout(checkEmailReminders,900);
   setTimeout(checkDeliveryReminders,900); // ข้อ 2: เตือนวันส่งงานตอน login (auto-login)
   setTimeout(checkOverdueDeliveries,900); // เตือนงานเลยกำหนดส่งตอน login (auto-login)
+  setTimeout(checkPendingDeleteApprovals,900); // แจ้ง Manager ถ้ามีคำขออนุมัติลบค้างอยู่ ตอน login (auto-login)
 }
 
 async function saveJobs(){
@@ -2058,7 +2063,6 @@ async function moveLeadToOutbound(id){
 async function approveLeadDelete(id){
   const l = leads.find(x=>x.id===id);
   if(!l) return;
-  if(!confirm(`อนุมัติลบ Lead "${l.customerName||'ไม่มีชื่อ'}" (ขอโดย ${l.pendingDeleteBy||'?'}) ใช่หรือไม่?`)) return;
   try {
     await deleteLeadFromDB(id);
     if(_useSupabase){
@@ -2069,6 +2073,7 @@ async function approveLeadDelete(id){
   } catch(e) {
     toast("ลบ Lead ไม่สำเร็จ: " + e.message);
   }
+  syncDeleteApprovalPopup();
 }
 async function rejectLeadDelete(id){
   const l = leads.find(x=>x.id===id);
@@ -2077,6 +2082,7 @@ async function rejectLeadDelete(id){
   await saveSingleLead(id);
   if(currentView==='leads') renderList();
   toast("ปฏิเสธคำขอลบแล้ว");
+  syncDeleteApprovalPopup();
 }
 
 // ข้อ: ล้างป้ายเตือน "อาจซ้ำกับ Lead เดิม" (ที่ระบบติดให้ตอนสร้าง Lead อัตโนมัติจากไลน์ follow event
@@ -4619,15 +4625,15 @@ async function deleteJob(id){
   toast("ลบงานแล้ว");
 }
 
-// Manager อนุมัติหรือปฏิเสธคำขอลบ
+// Manager อนุมัติหรือปฏิเสธคำขอลบ — กดแล้วมีผลทันที (ตัดสินใจไปแล้วตอนกดในป๊อปอัพแจ้งเตือน ไม่ต้องถามซ้ำ)
 async function approveDelete(id){
   const j = jobs.find(x=>x.id===id);
   if(!j) return;
-  if(!confirm(`อนุมัติลบงาน "${j.job||'ไม่มีชื่องาน'}" (ขอโดย ${j.pendingDeleteBy||'?'}) ใช่หรือไม่?`)) return;
   jobs = jobs.filter(x=>x.id!==id);
   await deleteJobFromDB(id);
   render();
   toast("อนุมัติและลบงานแล้ว");
+  syncDeleteApprovalPopup();
 }
 async function rejectDelete(id){
   const j = jobs.find(x=>x.id===id);
@@ -4636,6 +4642,46 @@ async function rejectDelete(id){
   await saveSingleJob(id);
   render();
   toast("ปฏิเสธคำขอลบแล้ว");
+  syncDeleteApprovalPopup();
+}
+
+// ── ป๊อปอัพแจ้งเตือน Manager เมื่อมีคำขออนุมัติลบ (งาน/Lead) ─────────────
+function pendingDeleteItems(){
+  const jobItems = jobs.filter(j=>j.pendingDelete).map(j=>({ type:'job', id:j.id, name:j.job||'ไม่มีชื่องาน', by:j.pendingDeleteBy, at:j.pendingDeleteAt }));
+  const leadItems = leads.filter(l=>l.pendingDelete).map(l=>({ type:'lead', id:l.id, name:leadDisplayName(l), by:l.pendingDeleteBy, at:l.pendingDeleteAt }));
+  return [...jobItems, ...leadItems].sort((a,b)=>(b.at||0)-(a.at||0));
+}
+function renderDeleteApprovalPopup(){
+  const box = $('deleteApprovalList');
+  if(!box) return;
+  const items = pendingDeleteItems();
+  if(!items.length){ closeDeleteApprovalPopup(); return; }
+  box.innerHTML = items.map(it=>`
+    <div style="background:#FFF5F5;border:1px solid #F1948A;border-radius:9px;padding:10px 12px;margin-bottom:8px;">
+      <div style="font-weight:600;font-size:13.5px;">${it.type==='job'?'📋':'👤'} ${escapeHtml(it.name)}</div>
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">ขอลบโดย ${escapeHtml(it.by||'?')}${it.at?(' · '+new Date(it.at).toLocaleString('th-TH')):''}</div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button onclick="window.${it.type==='job'?'rejectDelete':'rejectLeadDelete'}('${it.id}')" class="btn ghost" style="flex:1;padding:6px 10px;font-size:12px;">✕ ไม่อนุมัติ</button>
+        <button onclick="window.${it.type==='job'?'approveDelete':'approveLeadDelete'}('${it.id}')" class="btn" style="flex:1;padding:6px 10px;font-size:12px;background:#C0392B;color:#fff;">✓ อนุมัติ</button>
+      </div>
+    </div>
+  `).join('');
+  $('deleteApprovalModal').style.display = 'flex';
+}
+function closeDeleteApprovalPopup(){
+  const m = $('deleteApprovalModal');
+  if(m) m.style.display = 'none';
+}
+// เรียกหลังอนุมัติ/ปฏิเสธ — อัปเดตป๊อปอัพเฉพาะตอนที่เปิดอยู่แล้วเท่านั้น (ไม่เด้งขึ้นเองถ้ากดจากปุ่มในตารางแทน)
+function syncDeleteApprovalPopup(){
+  const m = $('deleteApprovalModal');
+  if(m && m.style.display==='flex') renderDeleteApprovalPopup();
+}
+// เรียกตอน login/realtime — ถ้ามีคำขอค้างอยู่และเป็น Manager ให้เด้งป๊อปอัพขึ้นมาเลย
+function checkPendingDeleteApprovals(){
+  if(currentUser?.role !== 'manager') return;
+  if(!pendingDeleteItems().length) return;
+  renderDeleteApprovalPopup();
 }
 
 // ข้อ 3: เตือนส่งอีเมลออกออเดอร์ใหม่
@@ -5208,17 +5254,22 @@ function checkEmailReminders(){
 
 // เช็คว่ายอดขายอาจลงซ้ำกับงานที่มีอยู่แล้วหรือไม่ — ชื่องาน/เลขใบเสนอราคา ต้องคล้าย/ตรงกันอย่างใดอย่างหนึ่ง
 // ร่วมกับยอดขายที่ใกล้เคียงกันมาก (ไม่เกิน 2% ของยอด) ถึงจะถือว่า "น่าสงสัย"
+// "อาจลงซ้ำ" ถ้าตรงกัน 2 ใน 3 ข้อ: เลขใบเสนอราคา / ชื่องาน / ยอดขาย (ไม่บังคับว่ายอดขายต้องตรงด้วยเสมอไป
+// เช่น เลขใบเสนอราคา+ชื่องานตรงกัน แต่ยอดขายต่างกันมาก ก็ถือว่าตรง 2 ใน 3 แล้ว ควรเตือน)
 function isLikelyDuplicateSale(a, b){
-  if(!a.salesAmount || !b.salesAmount) return false;
-  const amtDiff = Math.abs(a.salesAmount - b.salesAmount);
-  const amtTolerance = Math.max(a.salesAmount, b.salesAmount) * 0.02;
-  if(amtDiff > amtTolerance) return false;
   const norm = s => (s||'').trim().toLowerCase();
   const nameA = norm(a.job), nameB = norm(b.job);
   const nameMatch = !!nameA && !!nameB && (nameA===nameB || nameA.includes(nameB) || nameB.includes(nameA));
   const quoteA = norm(a.quote), quoteB = norm(b.quote);
   const quoteMatch = !!quoteA && !!quoteB && quoteA===quoteB;
-  return nameMatch || quoteMatch;
+  let amountMatch = false;
+  if(a.salesAmount && b.salesAmount){
+    const amtDiff = Math.abs(a.salesAmount - b.salesAmount);
+    const amtTolerance = Math.max(a.salesAmount, b.salesAmount) * 0.02;
+    amountMatch = amtDiff <= amtTolerance;
+  }
+  const matchCount = [nameMatch, quoteMatch, amountMatch].filter(Boolean).length;
+  return matchCount >= 2;
 }
 
 function findPossibleDuplicateSales(common, excludeId){
@@ -5638,6 +5689,7 @@ setInterval(checkEmailReminders, 5*60000);
   window.closeOutboundFollowUpPopup = closeOutboundFollowUpPopup;
   window.approveLeadDelete = approveLeadDelete;
   window.rejectLeadDelete = rejectLeadDelete;
+  window.closeDeleteApprovalPopup = closeDeleteApprovalPopup;
   window.clearAutoSalesForSelectedMonth = clearAutoSalesForSelectedMonth;
   window.clearPossibleDuplicateFlag = clearPossibleDuplicateFlag;
 
