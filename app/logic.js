@@ -141,6 +141,7 @@ let outboundContacts = []; // ลูกค้าที่เซลล์ติ�
 let leadModalMode = 'lead'; // 'lead' | 'outbound' — ใช้ฟอร์มเดียวกัน สลับโหมดตอนเปิด modal
 let leadsSubView = 'leads'; // 'leads' | 'outbound' — สลับมุมมองในหน้า Lead
 let outboundSearchQuery = ''; // ค้นหาชื่อลูกค้า/บริษัท ในตาราง Outbound
+let leadSearchQuery = ''; // ค้นหาชื่อ Lead (ชื่อที่เรียก) / ชื่อลูกค้า ในตารางรายการ Lead
 let outboundSellerFilter = ''; // กรองตามชื่อเซลล์ ในตาราง Outbound
 let leadPeriod = 'month'; // day | month | quarter | year
 let leadDailyShowAllMonths = false; // สรุป Lead ประจำวัน — false = โชว์เฉพาะเดือนปัจจุบัน, true = โชว์ทุกเดือน
@@ -2191,21 +2192,88 @@ function renderLeadGeoSection(){
   `;
 }
 
-function renderLeadsView(){
-  if(leadsSubView === 'outbound') return renderOutboundContactsView();
-  // ข้อ 11: date range filter สำหรับ Lead
-  const leadDateFrom = $("leadDateFrom") ? $("leadDateFrom").value : (window._leadDateFrom||"");
-  const leadDateTo   = $("leadDateTo")   ? $("leadDateTo").value   : (window._leadDateTo||"");
-
-  let filteredLeads = leads;
-  if(leadDateFrom || leadDateTo){
-    filteredLeads = leads.filter(l=>{
+// ข้อ 11: date range filter สำหรับ Lead
+function getDateFilteredLeads(){
+  const from = $("leadDateFrom") ? $("leadDateFrom").value : (window._leadDateFrom||"");
+  const to   = $("leadDateTo")   ? $("leadDateTo").value   : (window._leadDateTo||"");
+  let list = leads;
+  if(from || to){
+    list = leads.filter(l=>{
       const d = l.contactDate || new Date(l.createdAt).toISOString().slice(0,10);
-      if(leadDateFrom && d < leadDateFrom) return false;
-      if(leadDateTo   && d > leadDateTo)   return false;
+      if(from && d < from) return false;
+      if(to   && d > to)   return false;
       return true;
     });
   }
+  return { from, to, list };
+}
+// ค้นหาเฉพาะตารางรายการ Lead (ไม่กระทบสถิติ/กราฟด้านบน)
+function searchFilterLeads(list){
+  const q = leadSearchQuery.trim().toLowerCase();
+  if(!q) return list;
+  return list.filter(l=>`${l.nickname||''} ${l.customerName||''}`.toLowerCase().includes(q));
+}
+function leadListEmptyMsg(){
+  return leadSearchQuery.trim() ? 'ไม่พบ Lead ที่ตรงกับคำค้นหา' : 'ยังไม่มี Lead — กด "เพิ่ม Lead ใหม่" ด้านบนเพื่อเริ่มต้น';
+}
+function leadListHeading(shown, total){
+  return leadSearchQuery.trim() ? `รายการ Lead ทั้งหมด — พบ ${shown} จาก ${total}` : 'รายการ Lead ทั้งหมด';
+}
+// พิมพ์ในช่องค้นหา: อัปเดตเฉพาะแถวในตาราง ไม่ render ทั้งหน้า (ช่องค้นหาจะไม่เสียโฟกัส)
+function updateLeadListRows(){
+  const body = $("leadListBody");
+  if(!body) return;
+  const dated = getDateFilteredLeads().list;
+  const shown = searchFilterLeads(dated);
+  body.innerHTML = buildLeadRowsHtml(shown) || `<tr><td colspan="14" style="text-align:center;color:var(--ink-soft);padding:20px;">${leadListEmptyMsg()}</td></tr>`;
+  const h = $("leadListHeading");
+  if(h) h.textContent = leadListHeading(shown.length, dated.length);
+  const clr = $("clearLeadSearchBtn");
+  if(clr) clr.style.display = leadSearchQuery ? '' : 'none';
+  bindLeadEvents();
+}
+function buildLeadRowsHtml(list){
+  return list.slice().sort((a,b)=>b.createdAt-a.createdAt).map(l=>{
+    const won = leadHasOrder(l.id);
+    const teamColor = l.team==='ทีม Admin ไลน์ official' ? 'background:#DCEEF5;color:#1B4F7A;' : 'background:#E4EAC9;color:var(--olive-dark);';
+    return `
+      <tr style="${l.pendingDelete?'background:#FEF0D0;':''}">
+        <td>${l.no}</td>
+        <td><span class="badge-type" style="${teamColor}">${escapeHtml(l.team||'-')}</span></td>
+        <td><span class="badge-type" style="background:#E4EAC9;color:var(--olive-dark);">${escapeHtml(l.channel||'-')}</span></td>
+        <td>${escapeHtml(l.contactChannel||'-')}</td>
+        <td>${escapeHtml(l.lineOrFb||'-')}${l.lineUserId ? ` <span class="badge-type" title="ผูกกับ LINE userId แล้ว หาเจอแม้เปลี่ยนชื่อ/รูป" style="background:#D3F2DD;color:#1E7A44;font-size:10.5px;">🔗 LINE</span>` : ''}</td>
+        <td>${(l.phones||[]).filter(Boolean).join(", ")||'-'}</td>
+        <td class="date-cell">${l.contactDate ? formatDate(l.contactDate)+(l.contactTime?' '+l.contactTime:'') : formatDate(new Date(l.createdAt).toISOString().slice(0,10))}</td>
+        <td>${won ? '<span class="email-pill sent">✓ สำเร็จ (มีออเดอร์)</span>' : '<span class="email-pill unsent" style="animation:none;">ยังไม่มีออเดอร์</span>'}</td>
+        <td>${escapeHtml(l.customerName)}${l.possibleDuplicate ? `
+          <div style="margin-top:3px;">
+            <span class="badge-type" style="background:#FDECEA;color:#B03A2E;font-size:10px;" title="ชื่อไลน์คล้ายกับ Lead: ${escapeAttr(l.possibleDuplicateOfName||'')} — เผื่อเป็นลูกค้าเก่าที่เคยบล็อกแล้วแอดกลับ โปรดตรวจสอบว่าซ้ำกันหรือไม่">⚠ อาจซ้ำกับ "${escapeHtml(l.possibleDuplicateOfName||'')}"</span>
+            <button onclick="window.clearPossibleDuplicateFlag('${l.id}')" class="row-del-btn" style="font-size:9.5px;padding:1px 5px;margin-left:2px;" title="ตรวจสอบแล้วไม่ซ้ำ — ล้างป้ายเตือนนี้">✓ ตรวจสอบแล้ว</button>
+          </div>` : ''}</td>
+        <td>${l.nickname ? `<span style="font-weight:600;color:var(--olive-dark);">${escapeHtml(l.nickname)}</span>` : '-'}</td>
+        <td>${l.clientType ? `<span class="badge-type" style="background:#EEE6F5;color:#5B2C8A;" ${l.clientType==='อื่นๆ' && l.clientTypeOther ? `title="${escapeAttr(l.clientTypeOther)}"` : ''}>${escapeHtml(l.clientType)}${l.clientType==='อื่นๆ' && l.clientTypeOther ? `: ${escapeHtml(l.clientTypeOther)}` : ''}</span>` : '-'}</td>
+        <td>${escapeHtml(l.companyName||'-')}</td>
+        <td>${escapeHtml(l.province||'-')}</td>
+        <td>
+          ${l.pendingDelete ? `
+            <div style="font-size:11px;color:#7A5605;font-weight:700;margin-bottom:4px;white-space:nowrap;">🗑 ${escapeHtml(l.pendingDeleteBy||'?')} ขอลบ</div>
+            ${currentUser?.role==='manager'
+              ? `<button onclick="window.approveLeadDelete('${l.id}')" class="btn" style="padding:3px 8px;font-size:11px;background:#C0392B;color:#fff;">✓ อนุมัติ</button><button onclick="window.rejectLeadDelete('${l.id}')" class="btn ghost" style="padding:3px 8px;font-size:11px;">✕ ปฏิเสธ</button>`
+              : `<span style="color:#7A5605;font-size:11px;">(รอ Manager)</span>`}
+          ` : `
+            <button class="row-del-btn" data-leadedit="${l.id}" title="แก้ไข">✎</button>
+            <button class="row-del-btn" data-leadtooutbound="${l.id}" title="ย้ายไปรายชื่อติดต่อ Outbound (กรณีลงผิดเป็น Lead)">🎯</button>
+            <button class="row-del-btn" data-leaddel="${l.id}" title="${currentUser?.role==='manager'?'ลบ':'ขออนุมัติลบ'}">🗑</button>
+          `}
+        </td>
+      </tr>`;
+  }).join("");
+}
+
+function renderLeadsView(){
+  if(leadsSubView === 'outbound') return renderOutboundContactsView();
+  const { from: leadDateFrom, to: leadDateTo, list: filteredLeads } = getDateFilteredLeads();
 
   const total = filteredLeads.length;
   const success = filteredLeads.filter(l=>leadHasOrder(l.id)).length;
@@ -2243,42 +2311,8 @@ function renderLeadsView(){
     return `<tr><td>${escapeHtml(k)}</td><td>${g.total}</td><td>${g.success}</td><td>${r}%</td></tr>`;
   }).join("");
 
-  const leadRows = filteredLeads.slice().sort((a,b)=>b.createdAt-a.createdAt).map(l=>{
-    const won = leadHasOrder(l.id);
-    const teamColor = l.team==='ทีม Admin ไลน์ official' ? 'background:#DCEEF5;color:#1B4F7A;' : 'background:#E4EAC9;color:var(--olive-dark);';
-    return `
-      <tr style="${l.pendingDelete?'background:#FEF0D0;':''}">
-        <td>${l.no}</td>
-        <td><span class="badge-type" style="${teamColor}">${escapeHtml(l.team||'-')}</span></td>
-        <td><span class="badge-type" style="background:#E4EAC9;color:var(--olive-dark);">${escapeHtml(l.channel||'-')}</span></td>
-        <td>${escapeHtml(l.contactChannel||'-')}</td>
-        <td>${escapeHtml(l.lineOrFb||'-')}${l.lineUserId ? ` <span class="badge-type" title="ผูกกับ LINE userId แล้ว หาเจอแม้เปลี่ยนชื่อ/รูป" style="background:#D3F2DD;color:#1E7A44;font-size:10.5px;">🔗 LINE</span>` : ''}</td>
-        <td>${(l.phones||[]).filter(Boolean).join(", ")||'-'}</td>
-        <td class="date-cell">${l.contactDate ? formatDate(l.contactDate)+(l.contactTime?' '+l.contactTime:'') : formatDate(new Date(l.createdAt).toISOString().slice(0,10))}</td>
-        <td>${won ? '<span class="email-pill sent">✓ สำเร็จ (มีออเดอร์)</span>' : '<span class="email-pill unsent" style="animation:none;">ยังไม่มีออเดอร์</span>'}</td>
-        <td>${escapeHtml(l.customerName)}${l.possibleDuplicate ? `
-          <div style="margin-top:3px;">
-            <span class="badge-type" style="background:#FDECEA;color:#B03A2E;font-size:10px;" title="ชื่อไลน์คล้ายกับ Lead: ${escapeAttr(l.possibleDuplicateOfName||'')} — เผื่อเป็นลูกค้าเก่าที่เคยบล็อกแล้วแอดกลับ โปรดตรวจสอบว่าซ้ำกันหรือไม่">⚠ อาจซ้ำกับ "${escapeHtml(l.possibleDuplicateOfName||'')}"</span>
-            <button onclick="window.clearPossibleDuplicateFlag('${l.id}')" class="row-del-btn" style="font-size:9.5px;padding:1px 5px;margin-left:2px;" title="ตรวจสอบแล้วไม่ซ้ำ — ล้างป้ายเตือนนี้">✓ ตรวจสอบแล้ว</button>
-          </div>` : ''}</td>
-        <td>${l.nickname ? `<span style="font-weight:600;color:var(--olive-dark);">${escapeHtml(l.nickname)}</span>` : '-'}</td>
-        <td>${l.clientType ? `<span class="badge-type" style="background:#EEE6F5;color:#5B2C8A;" ${l.clientType==='อื่นๆ' && l.clientTypeOther ? `title="${escapeAttr(l.clientTypeOther)}"` : ''}>${escapeHtml(l.clientType)}${l.clientType==='อื่นๆ' && l.clientTypeOther ? `: ${escapeHtml(l.clientTypeOther)}` : ''}</span>` : '-'}</td>
-        <td>${escapeHtml(l.companyName||'-')}</td>
-        <td>${escapeHtml(l.province||'-')}</td>
-        <td>
-          ${l.pendingDelete ? `
-            <div style="font-size:11px;color:#7A5605;font-weight:700;margin-bottom:4px;white-space:nowrap;">🗑 ${escapeHtml(l.pendingDeleteBy||'?')} ขอลบ</div>
-            ${currentUser?.role==='manager'
-              ? `<button onclick="window.approveLeadDelete('${l.id}')" class="btn" style="padding:3px 8px;font-size:11px;background:#C0392B;color:#fff;">✓ อนุมัติ</button><button onclick="window.rejectLeadDelete('${l.id}')" class="btn ghost" style="padding:3px 8px;font-size:11px;">✕ ปฏิเสธ</button>`
-              : `<span style="color:#7A5605;font-size:11px;">(รอ Manager)</span>`}
-          ` : `
-            <button class="row-del-btn" data-leadedit="${l.id}" title="แก้ไข">✎</button>
-            <button class="row-del-btn" data-leadtooutbound="${l.id}" title="ย้ายไปรายชื่อติดต่อ Outbound (กรณีลงผิดเป็น Lead)">🎯</button>
-            <button class="row-del-btn" data-leaddel="${l.id}" title="${currentUser?.role==='manager'?'ลบ':'ขออนุมัติลบ'}">🗑</button>
-          `}
-        </td>
-      </tr>`;
-  }).join("");
+  const searchedLeads = searchFilterLeads(filteredLeads);
+  const leadRows = buildLeadRowsHtml(searchedLeads);
 
 
   // ข้อ 12: สรุป Lead ประจำวัน
@@ -2477,7 +2511,11 @@ function renderLeadsView(){
     </div>` : ""}
     ${renderLeadGeoSection()}
     <div class="summary-panel">
-      <h3>รายการ Lead ทั้งหมด</h3>
+      <h3 id="leadListHeading">${leadListHeading(searchedLeads.length, filteredLeads.length)}</h3>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <input type="text" id="leadSearchInput" class="filt" placeholder="🔍 ค้นหาชื่อ Lead / ชื่อลูกค้า..." value="${escapeAttr(leadSearchQuery)}" style="flex:1;min-width:200px;" autocomplete="off">
+        <button class="btn ghost" id="clearLeadSearchBtn" style="padding:5px 9px;font-size:12px;${leadSearchQuery ? '' : 'display:none;'}">✕ ล้าง</button>
+      </div>
       <div class="table-wrap" style="max-height:60vh;">
         <table class="ov-table lead-list-table">
           <thead><tr>
@@ -2496,7 +2534,7 @@ function renderLeadsView(){
             <th style="width:80px;">จังหวัด</th>
             <th style="width:100px;">จัดการ</th>
           </tr></thead>
-          <tbody>${leadRows || '<tr><td colspan="14" style="text-align:center;color:var(--ink-soft);padding:20px;">ยังไม่มี Lead — กด "เพิ่ม Lead ใหม่" ด้านบนเพื่อเริ่มต้น</td></tr>'}</tbody>
+          <tbody id="leadListBody">${leadRows || `<tr><td colspan="14" style="text-align:center;color:var(--ink-soft);padding:20px;">${leadListEmptyMsg()}</td></tr>`}</tbody>
         </table>
       </div>
     </div>
@@ -2762,6 +2800,10 @@ function bindLeadEvents(){
   if(dt) dt.onchange = ()=>{ window._leadDateTo = dt.value; renderList(); };
   const clr = $("clearLeadDateFilter");
   if(clr) clr.onclick = ()=>{ window._leadDateFrom=""; window._leadDateTo=""; renderList(); };
+  const searchInp = $("leadSearchInput");
+  if(searchInp) searchInp.oninput = ()=>{ leadSearchQuery = searchInp.value; updateLeadListRows(); };
+  const clearSearch = $("clearLeadSearchBtn");
+  if(clearSearch) clearSearch.onclick = ()=>{ leadSearchQuery=''; if(searchInp) searchInp.value=''; updateLeadListRows(); searchInp && searchInp.focus(); };
 }
 
 function stageProgress(j){
