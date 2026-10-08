@@ -439,8 +439,10 @@ async function saveSingleJob(jobId, forceOverwrite=false){
 
 async function deleteJobFromDB(jobId){
   if(_useSupabase){
-    const { error } = await _sb.from('jobs').delete().eq('id',jobId);
+    // .select() เพื่อดูว่าลบโดนจริงไหม — ถ้าโดน RLS บล็อก Supabase จะไม่คืน error แต่ลบได้ 0 แถว
+    const { data, error } = await _sb.from('jobs').delete().eq('id',jobId).select('id');
     if(error) throw error;
+    if(!data || !data.length) throw new Error('ลบไม่สำเร็จ (ไม่มีสิทธิ์ลบ หรือไม่พบงานนี้ในฐานข้อมูลแล้ว)');
     await releaseLock(jobId);
   } else {
     jobs = jobs.filter(j=>j.id!==jobId);
@@ -1231,8 +1233,9 @@ async function saveSingleLead(leadId){
 
 async function deleteLeadFromDB(leadId){
   if(_useSupabase){
-    const { error } = await _sb.from('leads').delete().eq('id',leadId);
+    const { data, error } = await _sb.from('leads').delete().eq('id',leadId).select('id');
     if(error) throw error;
+    if(!data || !data.length) throw new Error('ลบไม่สำเร็จ (ไม่มีสิทธิ์ลบ หรือไม่พบ Lead นี้ในฐานข้อมูลแล้ว)');
   } else {
     leads = leads.filter(l=>l.id!==leadId);
     await saveLeads();
@@ -1371,29 +1374,43 @@ async function tryLogin(){
     errEl.textContent = "กรุณากรอก Username และรหัสผ่าน";
     return;
   }
-  const u = findUserByUsername(uname);
-  if(!u || u.active===false || !u.email){
-    errEl.textContent = "Username ไม่ถูกต้อง หรือถูกระงับ";
-    return;
-  }
-  
-  errEl.textContent = "กำลังตรวจสอบรหัสผ่าน...";
-  
-  if(_useSupabase && _sb) {
-    const { data, error } = await _sb.auth.signInWithPassword({
-      email: u.email,
+  if(_useSupabase && _sb){
+    // ยังไม่ authenticated ตอนนี้ อ่าน users_tbl ตรงๆ ไม่ได้ (RLS) — ใช้ฟังก์ชันแคบๆ หาแค่อีเมลจาก username แทน
+    errEl.textContent = "กำลังตรวจสอบ...";
+    const { data, error } = await _sb.rpc('get_login_email', { p_username: uname.trim() });
+    const row = Array.isArray(data) ? data[0] : data;
+    if(error || !row || !row.email || row.active===false){
+      errEl.textContent = "Username ไม่ถูกต้อง หรือถูกระงับ";
+      return;
+    }
+    errEl.textContent = "กำลังตรวจสอบรหัสผ่าน...";
+    const { error: authErr } = await _sb.auth.signInWithPassword({
+      email: row.email,
       password: pass
     });
-    if(error) {
+    if(authErr){
       errEl.textContent = "รหัสผ่านไม่ถูกต้อง";
       return;
     }
+    // authenticated แล้ว -> เพิ่งจะอ่านข้อมูลได้ (ตอน boot ยังโหลดไม่ได้เพราะยังไม่ authenticated)
+    await loadUsers();
   } else {
     // Fallback if not using Supabase (not expected to hit)
-    if(u.password && u.password !== pass){
+    const u0 = findUserByUsername(uname);
+    if(!u0 || u0.active===false || !u0.email){
+      errEl.textContent = "Username ไม่ถูกต้อง หรือถูกระงับ";
+      return;
+    }
+    if(u0.password && u0.password !== pass){
       errEl.textContent = "Username หรือรหัสผ่านไม่ถูกต้อง";
       return;
     }
+  }
+
+  const u = findUserByUsername(uname);
+  if(!u || u.active===false){
+    errEl.textContent = "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้งค่ะ";
+    return;
   }
 
   errEl.textContent = "";
@@ -1405,17 +1422,25 @@ async function tryLogin(){
   $("loginOverlay").style.display = "none";
   renderTopbarUser();
   toast(`👋 ยินดีต้อนรับ ${u.name}`);
+  loadJobs();
+  loadLeads();
+  await loadHistoricalSales();
+  await loadExpenses();
+  await loadOutboundContacts();
   render();
   setTimeout(checkDeliveryReminders, 500); // ข้อ 2: เตือนวันส่งงานตอน login
   setTimeout(checkOverdueDeliveries, 500); // เตือนงานเลยกำหนดส่งตอน login
   setTimeout(checkOutboundFollowUps, 500); // เตือนวันนัดติดต่อลูกค้า Outbound กลับตอน login
 }
 
-function doLogout(){
+async function doLogout(){
   if(!confirm("ออกจากระบบใช่หรือไม่?")) return;
   currentUser = null;
+  jobs = []; leads = []; users = [];
   try{ localStorage.removeItem('sb_session'); }catch(e){}
   try{ window.storage.set("session", JSON.stringify({}), false); }catch(e){}
+  // ต้องเคลียร์ session ของ Supabase Auth จริงด้วย ไม่งั้น reload หน้าจะ auto-login กลับเข้ามาใหม่ทันที
+  if(_useSupabase && _sb){ try{ await _sb.auth.signOut(); }catch(e){} }
   $("loginOverlay").style.display = "flex";
   $("loginUsername").value = "";
   $("loginPassword").value = "";
@@ -1434,7 +1459,22 @@ function renderTopbarUser(){
 
 async function attemptAutoLogin(){
   try{
-    // ตรวจ localStorage ก่อน (เร็วกว่า และใช้ได้ทั้ง Supabase และ window.storage)
+    if(_useSupabase && _sb){
+      // ต้องเช็ค session ของ Supabase Auth ที่ยืนยันตัวตนจริง (ไม่ใช่แค่ธงจำใน localStorage)
+      // เพราะตารางข้อมูลอ่านได้เฉพาะตอน authenticated แล้วเท่านั้น (RLS)
+      const { data } = await _sb.auth.getSession();
+      const session = data?.session;
+      if(!session || !session.user || !session.user.email) return false;
+      await loadUsers();
+      const u = users.find(x=>x.email===session.user.email);
+      if(!u || u.active===false){ try{ await _sb.auth.signOut(); }catch(e){} return false; }
+      currentUser = u;
+      populateSellerSelect(); // เอาชื่อตัวเองขึ้นบนสุดของ dropdown เซลล์/เมเนเจอร์ ตอน auto-login
+      $("loginOverlay").style.display = "none";
+      renderTopbarUser();
+      return true;
+    }
+    // โหมด local storage (ไม่ใช้ Supabase) — ใช้ธงจำใน localStorage เหมือนเดิม
     let sess = null;
     const lsRaw = localStorage.getItem('sb_session');
     if(lsRaw) sess = JSON.parse(lsRaw);
@@ -1443,6 +1483,7 @@ async function attemptAutoLogin(){
       sess = res && res.value ? JSON.parse(res.value) : null;
     }
     if(sess && sess.username){
+      await loadUsers();
       const u = findUserByUsername(sess.username);
       if(u && u.active!==false){
         currentUser = u;
@@ -4671,10 +4712,14 @@ async function deleteJob(id){
 async function approveDelete(id){
   const j = jobs.find(x=>x.id===id);
   if(!j) return;
-  jobs = jobs.filter(x=>x.id!==id);
-  await deleteJobFromDB(id);
+  try {
+    await deleteJobFromDB(id);
+    jobs = jobs.filter(x=>x.id!==id);
+    toast("อนุมัติและลบงานแล้ว");
+  } catch(e) {
+    toast("ลบงานไม่สำเร็จ: " + e.message, 6000);
+  }
   render();
-  toast("อนุมัติและลบงานแล้ว");
   syncDeleteApprovalPopup();
 }
 async function rejectDelete(id){
@@ -5657,17 +5702,20 @@ function showSbSetup(){
 }
 
 async function _bootstrapData(){
-  await loadUsers();
-  populateSellerSelect();
+  // ข้อมูลตารางอ่านได้เฉพาะตอน authenticated แล้วเท่านั้น (RLS) — ต้องเช็ค session ก่อน
+  // ถ้ายังไม่ได้ authenticated ก็ยังโหลด jobs/leads/ยอดขาย/ผู้ใช้งานไม่ได้ ต้องรอ tryLogin() ก่อน
   const loggedIn = await attemptAutoLogin();
-  if(!loggedIn){ $("loginOverlay").style.display = "flex"; }
-  loadJobs();
-  loadLeads();
-  await loadHistoricalSales();
-  await loadExpenses();
-  await loadOutboundContacts();
-  if(currentView==='summary') renderList();
-  setTimeout(checkOutboundFollowUps, 900); // เตือนวันนัดติดต่อลูกค้า Outbound กลับตอน login (auto-login)
+  if(!loggedIn){
+    $("loginOverlay").style.display = "flex";
+  } else {
+    loadJobs();
+    loadLeads();
+    await loadHistoricalSales();
+    await loadExpenses();
+    await loadOutboundContacts();
+    if(currentView==='summary') renderList();
+    setTimeout(checkOutboundFollowUps, 900); // เตือนวันนัดติดต่อลูกค้า Outbound กลับตอน login (auto-login)
+  }
 
   // ถ้าใช้ window.storage (ไม่ใช่ Supabase) → ยังคง poll ทุก 8 วินาที
   if(!_useSupabase){
