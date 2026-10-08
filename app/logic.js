@@ -2113,7 +2113,13 @@ async function approveLeadDelete(id){
     if(currentView==='leads') renderList();
     toast("อนุมัติและลบ Lead แล้ว");
   } catch(e) {
-    toast("ลบ Lead ไม่สำเร็จ: " + e.message);
+    if(await rowGoneFromDB('leads', id)){
+      leads = leads.filter(x=>x.id!==id);
+      if(currentView==='leads') renderList();
+      toast("Lead นี้ถูกลบออกจากระบบไปก่อนแล้ว นำออกจากรายการให้แล้ว");
+    } else {
+      toast("ลบ Lead ไม่สำเร็จ: " + e.message, 6000);
+    }
   }
   syncDeleteApprovalPopup();
 }
@@ -4708,6 +4714,14 @@ async function deleteJob(id){
   toast("ลบงานแล้ว");
 }
 
+// ลบไม่โดน 2 แบบ: (1) ไม่มีสิทธิ์ (แถวยังอยู่ใน DB) (2) แถวถูกลบไปก่อนแล้วโดยอีกเครื่อง (หน้าจอเราเป็นข้อมูลเก่าค้าง)
+// ตรวจแยกให้ — แบบ (2) ไม่ใช่ความล้มเหลว ควรเอารายการค้างออกจากหน้าจอ ไม่งั้นป๊อปอัพจะเด้งรายการผีซ้ำไปเรื่อยๆ
+async function rowGoneFromDB(table, id){
+  if(!_useSupabase) return false;
+  const { data, error } = await _sb.from(table).select('id').eq('id',id).maybeSingle();
+  return !error && !data;
+}
+
 // Manager อนุมัติหรือปฏิเสธคำขอลบ — กดแล้วมีผลทันที (ตัดสินใจไปแล้วตอนกดในป๊อปอัพแจ้งเตือน ไม่ต้องถามซ้ำ)
 async function approveDelete(id){
   const j = jobs.find(x=>x.id===id);
@@ -4717,7 +4731,12 @@ async function approveDelete(id){
     jobs = jobs.filter(x=>x.id!==id);
     toast("อนุมัติและลบงานแล้ว");
   } catch(e) {
-    toast("ลบงานไม่สำเร็จ: " + e.message, 6000);
+    if(await rowGoneFromDB('jobs', id)){
+      jobs = jobs.filter(x=>x.id!==id);
+      toast("งานนี้ถูกลบออกจากระบบไปก่อนแล้ว นำออกจากรายการให้แล้ว");
+    } else {
+      toast("ลบงานไม่สำเร็จ: " + e.message, 6000);
+    }
   }
   render();
   syncDeleteApprovalPopup();
