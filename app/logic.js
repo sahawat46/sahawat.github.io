@@ -3676,7 +3676,12 @@ function renderBreakdownRows(term){
       <td>${formatDate(j.date)}</td>
       <td>${escapeHtml(j.customerType||'-')}</td>
       <td style="text-align:right;">${(Number(j.salesAmount)||0).toLocaleString()}</td>
-      <td style="text-align:center;"><button onclick="window.editJobFromBreakdown('${j.id}')" style="padding:2px 9px;font-size:11px;border:1px solid var(--olive-dark);background:#fff;color:var(--olive-dark);border-radius:10px;cursor:pointer;white-space:nowrap;">✎ แก้ไข</button></td>
+      <td style="text-align:center;"><div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+        <button onclick="window.editJobFromBreakdown('${j.id}')" style="padding:2px 9px;font-size:11px;border:1px solid var(--olive-dark);background:#fff;color:var(--olive-dark);border-radius:10px;cursor:pointer;white-space:nowrap;">✎ แก้ไข</button>
+        ${(j.pendingDelete && currentUser?.role!=='manager')
+          ? `<span style="font-size:10.5px;color:#7A5605;white-space:nowrap;align-self:center;">⏳ รอ Manager อนุมัติลบ</span>`
+          : `<button onclick="window.deleteJobFromBreakdown('${j.id}')" title="${currentUser?.role==='manager'?'ลบงานนี้ออกจากระบบ':'ขออนุมัติลบงานนี้'}" style="padding:2px 9px;font-size:11px;border:1px solid #B03A2E;background:#fff;color:#B03A2E;border-radius:10px;cursor:pointer;white-space:nowrap;">🗑 ${currentUser?.role==='manager'?'ลบ':'ขอลบ'}</button>`}
+      </div></td>
     </tr>`;
   }).join('');
   const jobsTotal = sorted.reduce((s,j)=>s+(Number(j.salesAmount)||0),0);
@@ -4736,7 +4741,13 @@ async function deleteJob(id){
     j.pendingDelete = true;
     j.pendingDeleteBy = currentUser.name;
     j.pendingDeleteAt = Date.now();
-    await saveSingleJob(id);
+    const saved = await saveSingleJob(id);
+    if(!saved){
+      j.pendingDelete = false; j.pendingDeleteBy = null; j.pendingDeleteAt = null;
+      render();
+      toast("⚠ ส่งคำขออนุมัติลบไม่สำเร็จ กรุณาลองอีกครั้งค่ะ", 5000);
+      return;
+    }
     render();
     toast("📨 ส่งคำขออนุมัติลบให้ Manager แล้วค่ะ");
     return;
@@ -4744,10 +4755,27 @@ async function deleteJob(id){
 
   // Manager ลบได้เลย
   if(!confirm(`ลบงาน "${j.job||'ไม่มีชื่องาน'}" ใช่หรือไม่?`)) return;
-  jobs = jobs.filter(x=>x.id!==id);
-  await deleteJobFromDB(id);
+  try {
+    await deleteJobFromDB(id);
+    jobs = jobs.filter(x=>x.id!==id);
+    toast("ลบงานแล้ว");
+  } catch(e) {
+    if(await rowGoneFromDB('jobs', id)){
+      jobs = jobs.filter(x=>x.id!==id);
+      toast("งานนี้ถูกลบออกจากระบบไปก่อนแล้ว นำออกจากรายการให้แล้ว");
+    } else {
+      toast("ลบงานไม่สำเร็จ: " + e.message, 6000);
+    }
+  }
   render();
-  toast("ลบงานแล้ว");
+}
+
+// ปุ่มลบในป๊อปอัพรายละเอียดยอดขาย — ใช้กติกาเดียวกับปุ่มลบในตาราง (Manager ลบได้เลย / พนักงานขออนุมัติ) แล้วรีเฟรชรายการในป๊อปอัพ
+async function deleteJobFromBreakdown(id){
+  await deleteJob(id);
+  if(!_lastBreakdown) return;
+  _lastBreakdown.jobsList = (_lastBreakdown.jobsList||[]).filter(j=>jobs.some(x=>x.id===j.id));
+  renderBreakdownRows(_breakdownSearchTerm);
 }
 
 // ลบไม่โดน 2 แบบ: (1) ไม่มีสิทธิ์ (แถวยังอยู่ใน DB) (2) แถวถูกลบไปก่อนแล้วโดยอีกเครื่อง (หน้าจอเราเป็นข้อมูลเก่าค้าง)
@@ -5849,6 +5877,7 @@ setInterval(checkEmailReminders, 5*60000);
   window.filterBreakdownRows = filterBreakdownRows;
   window.exportBreakdownExcel = exportBreakdownExcel;
   window.editJobFromBreakdown = editJobFromBreakdown;
+  window.deleteJobFromBreakdown = deleteJobFromBreakdown;
   window.markJobDuplicateReviewed = markJobDuplicateReviewed;
   window.closeDeliveryReminderPopup = closeDeliveryReminderPopup;
   window.closeOverdueDeliveryPopup = closeOverdueDeliveryPopup;
