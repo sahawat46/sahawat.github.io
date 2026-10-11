@@ -329,7 +329,9 @@ async function loadJobs(){
   if(_toAdd.length){ jobs.push(..._toAdd); }
   // อัพเดต stages จาก 7 กค.
   updateJobStagesJul7();
-  if(_toAdd.length || true){ await saveJobs(); }
+  // เขียนกลับทั้งก้อนเฉพาะตอนมีงาน seed ที่เพิ่งเติมเข้าไปจริง — เดิมเขียนทับทุกงานทุกครั้งที่ใครเปิดหน้าเว็บ
+  // ทำให้เลขเวอร์ชันของทุกงานเลื่อนตลอด (บันทึกของคนอื่นเลยชนกันบ่อย) และงานที่เพิ่งถูกลบ/แก้อาจถูกเขียนทับกลับมา
+  if(_toAdd.length){ await saveJobs(); }
   render();
   const od=jobs.filter(j=>getOverdueInfo(j)).length;
   if(od>0) setTimeout(()=>toast(`⚠ มีงานค้างเกินกำหนด ${od} รายการ`),500);
