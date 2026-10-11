@@ -3058,6 +3058,9 @@ function getOverdueDeliveries(){
 // ── สถิติการส่งงานตรงเวลา ───────────────────────────────────────────
 // "ตรงเวลา" = ส่งแล้ว และส่งภายในกำหนด หรือช้าไม่เกิน ONTIME_GRACE_DAYS วัน
 const ONTIME_GRACE_DAYS = 2;
+// เริ่มเก็บสถิตินี้ใหม่ตั้งแต่เดือนที่ครบกำหนดส่งเป็น ต.ค. 2569 เป็นต้นไป (ข้อมูลก่อนหน้านี้วันที่ส่งจริงไม่แม่น เพราะเป็นวันที่กดปุ่ม "ส่งแล้ว")
+const ONTIME_STATS_START = '2026-10';
+const inStatsPeriod = j=>monthKeyOf(j.deliveryDate, j.createdAt) >= ONTIME_STATS_START;
 function shippedDateKey(j){ return new Date(j.shippedAt).toISOString().slice(0,10); }
 // จำนวนวันที่ส่งช้ากว่ากำหนด (ติดลบ/0 = ส่งก่อนหรือตรงวัน) — null ถ้าส่งไม่ได้/ไม่มีข้อมูลวันที่ส่งจริง
 function shipLateDays(j){
@@ -3072,7 +3075,7 @@ function isOnTimeShipment(j){
 // งานที่นับเข้าสถิติ: ไม่นับงานยกเลิก/ไม่มีกำหนดส่ง และไม่นับงานที่ยังไม่ส่งแต่ยังไม่ถึงกำหนด (ยังตัดสินไม่ได้)
 function getDeliveryStatJobs(){
   return jobs.filter(j=>{
-    if(j.cancelled || !j.deliveryDate) return false;
+    if(j.cancelled || !j.deliveryDate || !inStatsPeriod(j)) return false;
     if(j.shipped) return true;
     const d = daysUntil(j.deliveryDate);
     return d!==null && d<0;
@@ -3092,7 +3095,7 @@ function renderLateShipmentReport(){
   const lateJobs = getLateShipmentJobs();
   const lateSet = new Set(lateJobs.map(j=>j.id));
   const pendingNotDue = jobs.filter(j=>{
-    if(j.cancelled || !j.deliveryDate || j.shipped) return false;
+    if(j.cancelled || !j.deliveryDate || j.shipped || !inStatsPeriod(j)) return false;
     const d = daysUntil(j.deliveryDate);
     return d!==null && d>=0;
   }).length;
@@ -3140,6 +3143,7 @@ function renderLateShipmentReport(){
     <div class="summary-panel">
       <h3>⏱ สถิติการส่งงานตรงเวลา — รายเดือน</h3>
       <p style="margin:0 0 10px;font-size:12px;color:var(--ink-soft);line-height:1.6;">
+        <b>เริ่มนับสถิติใหม่ตั้งแต่เดือน ${monthLabel(ONTIME_STATS_START)}</b> (งานที่ครบกำหนดส่งก่อนหน้านั้นไม่นับ) ·
         <b>ส่งตรงเวลา</b> = ส่งภายในวันกำหนดส่ง หรือช้าไม่เกิน ${ONTIME_GRACE_DAYS} วัน ·
         <b>งานทั้งหมด</b> = งานที่ส่งแล้ว + งานที่เลยกำหนดส่งแล้วแต่ยังไม่ส่ง (ไม่นับงานยกเลิก และงานที่ยังไม่ถึงกำหนดส่ง${pendingNotDue ? ` ซึ่งตอนนี้มี ${pendingNotDue} งาน` : ''}) ·
         "รวมเลยกำหนด" นับตั้งแต่ช้า 1 วันขึ้นไป
