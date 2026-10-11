@@ -1139,6 +1139,7 @@ function applyRoleUI(){
   tb('viewCardBtn',    canAccess('card'));
   tb('viewTableBtn',   canAccess('table'));
   tb('viewSummaryBtn', canAccess('summary'));
+  tb('viewDeliveryBtn', canAccess('summary'));
   tb('viewLeadBtn',    canAccess('lead'));
   tb('viewExpenseBtn', canAccess('expense'));
   tb('addBtn',         canAccess('add_job'));
@@ -1156,7 +1157,7 @@ function applyRoleUI(){
   // ถ้า currentView ไม่มีสิทธิ์ → เปลี่ยน view
   const viewOk = {
     card: canAccess('card'), table: canAccess('table'),
-    summary: canAccess('summary'), leads: canAccess('lead'),
+    summary: canAccess('summary'), delivery: canAccess('summary'), leads: canAccess('lead'),
     expense: canAccess('expense'),
   };
   if(!viewOk[currentView]){
@@ -3014,7 +3015,7 @@ function renderSummary(){
     box.onclick = ()=>{
       const v = box.dataset.quickfilter;
       $("filterStage").value = v;
-      if(currentView==='summary' || currentView==='leads'){
+      if(currentView==='summary' || currentView==='leads' || currentView==='delivery'){
         $("viewCardBtn").click();
       }else{
         renderList();
@@ -3054,59 +3055,80 @@ function getOverdueDeliveries(){
   return overdue;
 }
 
-// รายงานงานที่เลยกำหนดส่ง (ทุกงาน ไม่จำกัดเฉพาะของตัวเอง) — รวมทั้งที่ยังไม่ส่งและที่ส่งไปแล้วแต่ช้ากว่ากำหนด
-function getLateShipmentJobs(){
+// ── สถิติการส่งงานตรงเวลา ───────────────────────────────────────────
+// "ตรงเวลา" = ส่งแล้ว และส่งภายในกำหนด หรือช้าไม่เกิน ONTIME_GRACE_DAYS วัน
+const ONTIME_GRACE_DAYS = 2;
+function shippedDateKey(j){ return new Date(j.shippedAt).toISOString().slice(0,10); }
+// จำนวนวันที่ส่งช้ากว่ากำหนด (ติดลบ/0 = ส่งก่อนหรือตรงวัน) — null ถ้าส่งไม่ได้/ไม่มีข้อมูลวันที่ส่งจริง
+function shipLateDays(j){
+  if(!j.shipped || !j.shippedAt || !j.deliveryDate) return null;
+  return Math.round((new Date(shippedDateKey(j)+"T00:00:00") - new Date(j.deliveryDate+"T00:00:00"))/86400000);
+}
+function isOnTimeShipment(j){
+  if(!j.shipped) return false;
+  const late = shipLateDays(j);
+  return late===null || late <= ONTIME_GRACE_DAYS;
+}
+// งานที่นับเข้าสถิติ: ไม่นับงานยกเลิก/ไม่มีกำหนดส่ง และไม่นับงานที่ยังไม่ส่งแต่ยังไม่ถึงกำหนด (ยังตัดสินไม่ได้)
+function getDeliveryStatJobs(){
   return jobs.filter(j=>{
     if(j.cancelled || !j.deliveryDate) return false;
-    if(j.shipped){
-      if(!j.shippedAt) return false;
-      const shippedDateStr = new Date(j.shippedAt).toISOString().slice(0,10);
-      return shippedDateStr > j.deliveryDate;
-    }
+    if(j.shipped) return true;
     const d = daysUntil(j.deliveryDate);
     return d!==null && d<0;
   });
 }
+// งานที่เลยกำหนดส่ง (ทุกงาน ไม่จำกัดเฉพาะของตัวเอง) — รวมทั้งที่ยังไม่ส่งและที่ส่งไปแล้วแต่ช้ากว่ากำหนด
+function getLateShipmentJobs(){
+  return getDeliveryStatJobs().filter(j=>{
+    if(!j.shipped) return true;
+    const late = shipLateDays(j);
+    return late!==null && late>0;
+  });
+}
 
 function renderLateShipmentReport(){
+  const statJobs = getDeliveryStatJobs();
   const lateJobs = getLateShipmentJobs();
-  const monthGroups = {};
-  lateJobs.forEach(j=>{
-    const k = monthKeyOf(j.deliveryDate, j.createdAt);
-    if(!monthGroups[k]) monthGroups[k] = [];
-    monthGroups[k].push(j);
-  });
-  const monthKeys = Object.keys(monthGroups).sort((a,b)=>b.localeCompare(a));
-  const monthRows = monthKeys.map(k=>{
-    const list = monthGroups[k];
+  const lateSet = new Set(lateJobs.map(j=>j.id));
+  const pendingNotDue = jobs.filter(j=>{
+    if(j.cancelled || !j.deliveryDate || j.shipped) return false;
+    const d = daysUntil(j.deliveryDate);
+    return d!==null && d>=0;
+  }).length;
+
+  const calc = list=>{
+    const total = list.length;
+    const onTime = list.filter(isOnTimeShipment).length;
     const stillOpen = list.filter(j=>!j.shipped).length;
-    const shippedLate = list.filter(j=>j.shipped).length;
-    return `<tr><td>${monthLabel(k)}</td><td>${list.length}</td><td style="color:var(--stamp-red);">${stillOpen}</td><td style="color:var(--khaki-green);">${shippedLate}</td></tr>`;
-  }).join('');
-  const totalAll = lateJobs.length;
-  const totalOpen = lateJobs.filter(j=>!j.shipped).length;
-  const totalShippedLate = lateJobs.filter(j=>j.shipped).length;
+    const shippedLate = list.filter(j=>j.shipped && lateSet.has(j.id)).length;
+    const pct = total ? Math.round(onTime/total*1000)/10 : 0;
+    return { total, onTime, pct, late: stillOpen+shippedLate, stillOpen, shippedLate };
+  };
+  const rowHtml = (label, c)=>`<tr><td>${label}</td><td>${c.total}</td><td style="color:var(--khaki-green);font-weight:600;">${c.onTime}</td><td style="font-weight:600;">${c.pct}%</td><td>${c.late}</td><td style="color:var(--stamp-red);">${c.stillOpen}</td><td style="color:var(--khaki-green);">${c.shippedLate}</td></tr>`;
+  const head = firstCol=>`<thead><tr><th>${firstCol}</th><th>งานทั้งหมด</th><th>ส่งตรงเวลา<br><span style="font-weight:400;font-size:11px;">(ช้าไม่เกิน ${ONTIME_GRACE_DAYS} วัน)</span></th><th>% ตรงเวลา</th><th>รวมเลยกำหนด</th><th>ยังไม่ส่ง</th><th>ส่งแล้ว (ช้า)</th></tr></thead>`;
+
+  const monthGroups = {};
+  statJobs.forEach(j=>{
+    const k = monthKeyOf(j.deliveryDate, j.createdAt);
+    (monthGroups[k] = monthGroups[k] || []).push(j);
+  });
+  const monthRows = Object.keys(monthGroups).sort((a,b)=>b.localeCompare(a)).map(k=>rowHtml(monthLabel(k), calc(monthGroups[k]))).join('');
 
   const yearGroups = {};
-  lateJobs.forEach(j=>{
+  statJobs.forEach(j=>{
     const y = Number(monthKeyOf(j.deliveryDate, j.createdAt).split('-')[0]);
-    if(!yearGroups[y]) yearGroups[y] = [];
-    yearGroups[y].push(j);
+    (yearGroups[y] = yearGroups[y] || []).push(j);
   });
-  const yearKeys = Object.keys(yearGroups).map(Number).sort((a,b)=>b-a);
-  const yearRows = yearKeys.map(y=>{
-    const list = yearGroups[y];
-    const stillOpen = list.filter(j=>!j.shipped).length;
-    const shippedLate = list.filter(j=>j.shipped).length;
-    return `<tr><td>ปี ${toBE(y)}</td><td>${list.length}</td><td style="color:var(--stamp-red);">${stillOpen}</td><td style="color:var(--khaki-green);">${shippedLate}</td></tr>`;
-  }).join('');
+  const yearRows = Object.keys(yearGroups).map(Number).sort((a,b)=>b-a).map(y=>rowHtml(`ปี ${toBE(y)}`, calc(yearGroups[y]))).join('');
+
+  const all = calc(statJobs);
+  const footHtml = `<tfoot><tr><td>รวมทั้งหมด</td><td>${all.total}</td><td>${all.onTime}</td><td>${all.pct}%</td><td>${all.late}</td><td>${all.stillOpen}</td><td>${all.shippedLate}</td></tr></tfoot>`;
 
   const detailRows = lateJobs.slice().sort((a,b)=>(b.deliveryDate||'').localeCompare(a.deliveryDate||'')).map(j=>{
     let statusHtml;
     if(j.shipped){
-      const shippedDateStr = new Date(j.shippedAt).toISOString().slice(0,10);
-      const lateDays = Math.round((new Date(shippedDateStr+"T00:00:00") - new Date(j.deliveryDate+"T00:00:00"))/86400000);
-      statusHtml = `<span style="color:var(--khaki-green);">ส่งแล้ว (ช้า ${lateDays} วัน)</span>`;
+      statusHtml = `<span style="color:var(--khaki-green);">ส่งแล้ว (ช้า ${shipLateDays(j)} วัน)</span>`;
     } else {
       const d = daysUntil(j.deliveryDate);
       statusHtml = `<span style="color:var(--stamp-red);font-weight:600;">ยังไม่ส่ง (เลยมา ${Math.abs(d)} วัน)</span>`;
@@ -3116,18 +3138,23 @@ function renderLateShipmentReport(){
 
   return `
     <div class="summary-panel">
-      <h3>🚨 รายงานงานที่เลยกำหนดส่ง — รายเดือน</h3>
+      <h3>⏱ สถิติการส่งงานตรงเวลา — รายเดือน</h3>
+      <p style="margin:0 0 10px;font-size:12px;color:var(--ink-soft);line-height:1.6;">
+        <b>ส่งตรงเวลา</b> = ส่งภายในวันกำหนดส่ง หรือช้าไม่เกิน ${ONTIME_GRACE_DAYS} วัน ·
+        <b>งานทั้งหมด</b> = งานที่ส่งแล้ว + งานที่เลยกำหนดส่งแล้วแต่ยังไม่ส่ง (ไม่นับงานยกเลิก และงานที่ยังไม่ถึงกำหนดส่ง${pendingNotDue ? ` ซึ่งตอนนี้มี ${pendingNotDue} งาน` : ''}) ·
+        "รวมเลยกำหนด" นับตั้งแต่ช้า 1 วันขึ้นไป
+      </p>
       <table class="rep-table">
-        <thead><tr><th>เดือน (ตามกำหนดส่ง)</th><th>รวมเลยกำหนด</th><th>ยังไม่ส่ง</th><th>ส่งแล้ว (ช้า)</th></tr></thead>
-        <tbody>${monthRows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">ไม่มีงานเลยกำหนดส่งเลยค่ะ 🎉</td></tr>'}</tbody>
-        <tfoot><tr><td>รวมทั้งหมด</td><td>${totalAll}</td><td>${totalOpen}</td><td>${totalShippedLate}</td></tr></tfoot>
+        ${head('เดือน (ตามกำหนดส่ง)')}
+        <tbody>${monthRows || '<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);">ยังไม่มีข้อมูล</td></tr>'}</tbody>
+        ${footHtml}
       </table>
     </div>
     <div class="summary-panel">
-      <h3>📆 รายงานงานที่เลยกำหนดส่ง — รายปี</h3>
+      <h3>📆 สถิติการส่งงานตรงเวลา — รายปี</h3>
       <table class="rep-table">
-        <thead><tr><th>ปี</th><th>รวมเลยกำหนด</th><th>ยังไม่ส่ง</th><th>ส่งแล้ว (ช้า)</th></tr></thead>
-        <tbody>${yearRows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">ไม่มีข้อมูล</td></tr>'}</tbody>
+        ${head('ปี')}
+        <tbody>${yearRows || '<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);">ไม่มีข้อมูล</td></tr>'}</tbody>
       </table>
     </div>
     ${lateJobs.length ? `<div class="summary-panel">
@@ -3151,7 +3178,7 @@ function renderAlerts(){
     html += `<div class="alert-box outbound-due"><div class="at">🎯 ถึงกำหนดติดต่อลูกค้ากลับ — ${dueOutbound.length} ราย</div>
       <ul>${dueOutbound.map(c=>`<li>${escapeHtml(c.customerName||'ไม่มีชื่อ')} (${escapeHtml(c.seller||'-')})</li>`).join("")}</ul></div>`;
   }
-  if(currentView==='summary' || currentView==='leads'){ el.innerHTML=html; return; }
+  if(currentView==='summary' || currentView==='leads' || currentView==='delivery'){ el.innerHTML=html; return; }
   const { soon, tomorrow } = getUpcomingDeliveries();
   if(soon.length){
     html += `<div class="alert-box soon"><div class="at">⏰ ใกล้ถึงกำหนดส่ง (ภายใน 4 วัน) — ${soon.length} งาน</div>
@@ -3235,6 +3262,10 @@ function renderList(){
   }
   if(currentView === 'expense'){
     el.innerHTML = renderExpenseView();
+    return;
+  }
+  if(currentView === 'delivery'){
+    el.innerHTML = renderLateShipmentReport();
     return;
   }
   if(currentView === 'leads'){
@@ -4188,7 +4219,6 @@ function renderSummaryView(){
       </table>
     </div>
     ${crossTabHtml}
-    ${renderLateShipmentReport()}
   `;
 }
 
@@ -5567,7 +5597,7 @@ $("f_customerType").onchange = ()=>{
 };
 
 function setActiveView(btnId){
-  ["viewCardBtn","viewTableBtn","viewSummaryBtn","viewLeadBtn","viewExpenseBtn"].forEach(id=>$(id).classList.toggle('active', id===btnId));
+  ["viewCardBtn","viewTableBtn","viewSummaryBtn","viewDeliveryBtn","viewLeadBtn","viewExpenseBtn"].forEach(id=>$(id).classList.toggle('active', id===btnId));
 }
 $("viewCardBtn").onclick = ()=>{
   currentView = 'card';
@@ -5584,6 +5614,12 @@ $("viewTableBtn").onclick = ()=>{
 $("viewSummaryBtn").onclick = ()=>{
   currentView = 'summary';
   setActiveView('viewSummaryBtn');
+  document.querySelector('.container').classList.add('wide');
+  render();
+};
+$("viewDeliveryBtn").onclick = ()=>{
+  currentView = 'delivery';
+  setActiveView('viewDeliveryBtn');
   document.querySelector('.container').classList.add('wide');
   render();
 };

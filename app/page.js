@@ -98,6 +98,7 @@ export default function Home() {
         <button className="vt-btn active" id="viewCardBtn" title="มุมมองการ์ด">▤ การ์ด</button>
         <button className="vt-btn" id="viewTableBtn" title="มุมมองตาราง">▦ ตาราง</button>
         <button className="vt-btn" id="viewSummaryBtn" title="สรุปยอดขาย">📊 สรุปยอดขาย</button>
+        <button className="vt-btn" id="viewDeliveryBtn" title="สถิติการส่งงานตรงเวลา">⏱ สถิติการส่งงานตรงเวลา</button>
         <button className="vt-btn" id="viewLeadBtn" title="Lead ลูกค้า">🧲 Lead</button>
         <button className="vt-btn" id="viewExpenseBtn" title="ค่าใช้จ่าย">💰 ค่าใช้จ่าย</button>
       </div>
