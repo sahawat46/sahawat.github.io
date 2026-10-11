@@ -406,7 +406,7 @@ async function saveSingleJob(jobId, forceOverwrite=false){
           $('conflictDialog').style.display='flex';
           $('conflictOverwrite').onclick=async()=>{
             $('conflictDialog').style.display='none';
-            await saveSingleJob(jobId, true); resolve(true);
+            resolve(await saveSingleJob(jobId, true));
           };
           $('conflictReload').onclick=async()=>{
             $('conflictDialog').style.display='none';
@@ -4809,10 +4809,18 @@ async function setShipped(id, opts={}){
   if(!j) return false;
   if(j.shipped) return true;
   if(!skipConfirm && !confirm(`ยืนยันว่างาน "${j.job||'ไม่มีชื่องาน'}" จัดส่งแล้วใช่หรือไม่?`)) return false;
+  const prev = { shippedAt:j.shippedAt, shippedBy:j.shippedBy };
   j.shipped = true;
   j.shippedAt = Date.now();
   j.shippedBy = currentUser?.name || '';
-  await saveSingleJob(id);
+  const saved = await saveSingleJob(id);
+  if(!saved){
+    // บันทึกลงฐานข้อมูลไม่สำเร็จ (error หรือกดยกเลิกตอนข้อมูลชนกัน) — คืนค่าเดิม ไม่แกล้งทำเป็นสำเร็จ ไม่งั้นพรุ่งนี้จะเตือนซ้ำ
+    j.shipped = false; j.shippedAt = prev.shippedAt; j.shippedBy = prev.shippedBy;
+    render();
+    toast('⚠ ยังไม่ได้บันทึกว่าส่งแล้ว (บันทึกไม่สำเร็จ) กรุณากดอีกครั้งค่ะ', 5000);
+    return false;
+  }
   render();
   toast('🚚 บันทึกว่าส่งแล้วค่ะ');
   return true;
@@ -4919,8 +4927,15 @@ function showOverdueDeliveryPopup(list){
       const j = jobs.find(x=>x.id===jobId);
       if(!j) return;
       btn.disabled = true;
+      const oldDate = j.deliveryDate;
       j.deliveryDate = newDate;
-      await saveSingleJob(jobId);
+      const saved = await saveSingleJob(jobId);
+      if(!saved){
+        j.deliveryDate = oldDate;
+        btn.disabled = false;
+        toast('⚠ ยังไม่ได้บันทึกวันใหม่ (บันทึกไม่สำเร็จ) กรุณากดอีกครั้งค่ะ', 5000);
+        return;
+      }
       const item = box.querySelector(`.od-item[data-jobid="${jobId}"]`);
       if(item) item.remove();
       toast('📅 อัปเดตวันจัดส่งใหม่แล้วค่ะ');
