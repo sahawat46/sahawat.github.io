@@ -3358,7 +3358,7 @@ function renderTableHtml(list){
       const c = personColor(st.by);
       return `<td>
         <span class="pchip" data-job="${j.id}" data-stage="${s.key}" style="background:${c.bg};color:${c.text}">${st.by}</span>
-        <div class="date-cell">${st.at ? formatDate(new Date(st.at).toISOString().slice(0,10)) : ''}</div>
+        <div class="date-cell">${st.at ? formatDate(st.at) : ''}</div>
       </td>`;
     }).join("");
     const sc = personColor(j.seller);
@@ -3416,6 +3416,7 @@ function renderTicket(j){
         <div class="dot">${st.done?'✓':''}</div>
         <div class="lbl">${s.label}</div>
         ${st.done && st.by ? `<div class="who">${st.by}</div>` : ''}
+        ${st.done && st.at ? `<div class="when" title="วันที่อัปเดตสถานะนี้">${formatDate(st.at)}</div>` : ''}
       </div>
     `;
   }).join("");
