@@ -5459,7 +5459,6 @@ function checkEmailReminders(){
     if(j.seller !== currentUser.name) return; // เฉพาะงานของตัวเอง
     if(!j.cancelled) queueEmailReminder(j.id);
   });
-  saveJobs();
 }
 
 // เช็คว่ายอดขายอาจลงซ้ำกับงานที่มีอยู่แล้วหรือไม่ — ชื่องาน/เลขใบเสนอราคา ต้องคล้าย/ตรงกันอย่างใดอย่างหนึ่ง
@@ -5718,13 +5717,22 @@ $("emailSentBtn").onclick = async ()=>{
   if(pendingEmailJobId){
     const j = jobs.find(x=>x.id===pendingEmailJobId);
     if(j){
+      const prev = { emailSent:j.emailSent, emailReminder:j.emailReminder, summary:j.stages?.summary };
       j.emailSent = true;
       j.emailReminder = null;
       // ข้อ 1: อัพเดตสถานะ "สรุปส่งออกออเดอร์" อัตโนมัติ
       if(j.stages && !j.stages.summary?.done){
         j.stages.summary = { done: true, by: currentUser?.name || "", at: Date.now() };
       }
-      await saveSingleJob(j.id);
+      const saved = await saveSingleJob(j.id);
+      if(!saved){
+        // บันทึกไม่สำเร็จ — คืนค่าเดิมและเก็บป๊อปอัพไว้ให้กดซ้ำ ไม่งั้นพรุ่งนี้จะเตือนซ้ำอีก
+        j.emailSent = prev.emailSent; j.emailReminder = prev.emailReminder;
+        if(j.stages) j.stages.summary = prev.summary;
+        render();
+        toast("⚠ ยังไม่ได้บันทึกว่าส่งอีเมลแล้ว (บันทึกไม่สำเร็จ) กรุณากด \"ส่งแล้ว\" อีกครั้งค่ะ", 6000);
+        return;
+      }
       render();
     }
   }
