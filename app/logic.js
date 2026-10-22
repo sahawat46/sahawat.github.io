@@ -307,18 +307,38 @@ async function checkConflict(table, id, localVersion){
   return false;
 }
 
+// Supabase ส่งกลับได้สูงสุด 1,000 แถวต่อคำขอ — ถ้าไม่แบ่งหน้าจะได้ข้อมูลไม่ครบ (แถวที่เหลือเงียบหายไป)
+// ต้องเรียงตาม id ให้ลำดับคงที่ แล้วดึงทีละ 1,000 แถวจนครบ
+async function fetchAllRows(table){
+  const PAGE = 1000;
+  let all = [];
+  for(let from=0; ; from+=PAGE){
+    const { data, error } = await _sb.from(table).select('*').order('id').range(from, from+PAGE-1);
+    if(error) throw error;
+    all = all.concat(data||[]);
+    if(!data || data.length < PAGE) break;
+  }
+  return all;
+}
+
 // ── Jobs CRUD ────────────────────────────────────────────────────────
 async function loadJobs(){
+  let loadFailed = false;
   try{
     if(_useSupabase){
-      const { data, error } = await _sb.from('jobs').select('*');
-      if(error) throw error;
-      jobs = (data||[]).map(dbRowToJob).sort((a,b)=>b.createdAt-a.createdAt);
+      const data = await fetchAllRows('jobs');
+      jobs = data.map(dbRowToJob).sort((a,b)=>b.createdAt-a.createdAt);
     } else {
       const res = await window.storage.get("jobs", true);
       jobs = res && res.value ? JSON.parse(res.value) : [];
     }
-  }catch(e){ console.error('loadJobs',e); jobs=[]; }
+  }catch(e){ console.error('loadJobs',e); jobs=[]; loadFailed = true; }
+  if(loadFailed && _useSupabase){
+    // โหลดไม่สำเร็จ — ห้ามสร้างงานตั้งต้นแล้วเขียนทับฐานข้อมูล
+    toast('⚠ โหลดข้อมูลงานไม่สำเร็จ กรุณารีเฟรชหน้าอีกครั้ง (ยังไม่มีการแก้ไขข้อมูลเดิม)', 8000);
+    render();
+    return;
+  }
   if(!jobs.length){ jobs=seedData(); await saveJobs(); }
   // merge งาน 6 กค ที่ยังไม่มีในระบบ
   const _existIds = new Set(jobs.map(j=>j.id));
@@ -1175,16 +1195,20 @@ function applyRoleUI(){
 }
 
 async function loadLeads(){
+  let loadFailed = false;
   try{
     if(_useSupabase){
-      const { data, error } = await _sb.from('leads').select('*');
-      if(error) throw error;
-      leads = (data||[]).map(dbRowToLead).sort((a,b)=>b.createdAt-a.createdAt);
+      const data = await fetchAllRows('leads');
+      leads = data.map(dbRowToLead).sort((a,b)=>b.createdAt-a.createdAt);
     } else {
       const res = await window.storage.get("leads", true);
       leads = res && res.value ? JSON.parse(res.value) : [];
     }
-  }catch(e){ console.error('loadLeads',e); leads=[]; }
+  }catch(e){ console.error('loadLeads',e); leads=[]; loadFailed = true; }
+  if(loadFailed && _useSupabase){
+    toast('⚠ โหลดข้อมูล Lead ไม่สำเร็จ กรุณารีเฟรชหน้าอีกครั้ง (ยังไม่มีการแก้ไขข้อมูลเดิม)', 8000);
+    return;
+  }
   if(!leads.length){ leads=seedLeads(); await saveLeads(); }
   // merge leads 6 กค
   const _lIds = new Set(leads.map(l=>l.id));
