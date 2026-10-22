@@ -177,7 +177,7 @@
                 <!-- Pet home screen -->
                 <div id="pet-home-screen" class="hidden mt-2">
                     <div class="flex flex-col items-center">
-                        <div id="pet-sprite" class="text-8xl md:text-9xl floaty cursor-pointer select-none" onclick="petReact()">🐶</div>
+                        <div id="pet-sprite" class="floaty cursor-pointer select-none" style="width:min(12rem,60vw)" onclick="petReact()"></div>
                         <p id="pet-mood-text" class="mt-2 font-bold text-lg text-pink-700 text-center"></p>
                     </div>
 
@@ -939,13 +939,135 @@
 
         // ===================== Pet Care Mini-Game =====================
         const petTypes = [
-            { id: 'dog', name: 'น้องหมา', emoji: '🐶' },
-            { id: 'cat', name: 'น้องแมว', emoji: '🐱' },
-            { id: 'raccoon', name: 'น้องแรคคูน', emoji: '🦝' },
-            { id: 'otter', name: 'น้องนาก', emoji: '🦦' },
-            { id: 'capybara', name: 'น้องคาปิบารา', emoji: '🦫' },
-            { id: 'rabbit', name: 'น้องกระต่าย', emoji: '🐰' }
+            { id: 'dog', name: 'น้องหมา' },
+            { id: 'cat', name: 'น้องแมว' },
+            { id: 'raccoon', name: 'น้องแรคคูน' },
+            { id: 'otter', name: 'น้องนาก' },
+            { id: 'capybara', name: 'น้องคาปิบารา' },
+            { id: 'rabbit', name: 'น้องกระต่าย' }
         ];
+
+        // ---- Kawaii pet art: original SVG drawings, built from shared face parts so every
+        // pet can show a mood (normal / happy / eat / sleep / bath) without extra images.
+        const PET_INK = '#3b2a2a';
+
+        // `ink` lets a pet with a dark face mask (raccoon) draw closed eyes in a light colour
+        function petEyes(xs, y, mood, ink = PET_INK) {
+            return xs.map(x => {
+                if (mood === 'sleep') return `<path d="M${x - 8} ${y} Q${x} ${y + 8} ${x + 8} ${y}" fill="none" stroke="${ink}" stroke-width="3.5" stroke-linecap="round"/>`;
+                if (mood === 'happy' || mood === 'eat' || mood === 'bath') return `<path d="M${x - 8} ${y + 3} Q${x} ${y - 9} ${x + 8} ${y + 3}" fill="none" stroke="${ink}" stroke-width="3.5" stroke-linecap="round"/>`;
+                return `<circle cx="${x}" cy="${y}" r="8.5" fill="#241818"/><circle cx="${x + 3}" cy="${y - 3.5}" r="3.2" fill="#fff"/><circle cx="${x - 3}" cy="${y + 3}" r="1.6" fill="#fff"/>`;
+            }).join('');
+        }
+
+        function petMouth(x, y, mood) {
+            if (mood === 'eat') return `<path d="M${x - 10} ${y} Q${x} ${y + 20} ${x + 10} ${y} Z" fill="#e8556d" stroke="${PET_INK}" stroke-width="2.5" stroke-linejoin="round"/><ellipse cx="${x}" cy="${y + 10}" rx="5" ry="3" fill="#ff9eb5"/>`;
+            if (mood === 'sleep') return `<path d="M${x - 4} ${y + 2} Q${x} ${y + 5} ${x + 4} ${y + 2}" fill="none" stroke="${PET_INK}" stroke-width="2.5" stroke-linecap="round"/>`;
+            return `<path d="M${x - 9} ${y} Q${x - 4.5} ${y + 7} ${x} ${y} Q${x + 4.5} ${y + 7} ${x + 9} ${y}" fill="none" stroke="${PET_INK}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+        }
+
+        function petBlush(xs, y) {
+            return xs.map(x => `<ellipse cx="${x}" cy="${y}" rx="11" ry="7" fill="#ff8fab" opacity=".55"/>`).join('');
+        }
+
+        function petExtras(mood) {
+            if (mood === 'sleep') return `<g font-family="'Baloo 2', sans-serif" font-weight="700" fill="#6c63ff"><text x="148" y="44" font-size="28">Z</text><text x="170" y="22" font-size="19">z</text></g>`;
+            if (mood === 'bath') return `<g fill="#e6f6ff" fill-opacity=".7" stroke="#7ec8ff" stroke-width="2.5"><circle cx="30" cy="56" r="11"/><circle cx="170" cy="74" r="9"/><circle cx="152" cy="30" r="6"/><circle cx="44" cy="150" r="7"/><circle cx="166" cy="148" r="10"/><circle cx="22" cy="100" r="5"/></g>`;
+            return '';
+        }
+
+        const PET_ART = {
+            dog: m => `
+                <ellipse cx="100" cy="176" rx="42" ry="24" fill="#f2c27b"/>
+                <ellipse cx="76" cy="192" rx="15" ry="8" fill="#fff3de"/><ellipse cx="124" cy="192" rx="15" ry="8" fill="#fff3de"/>
+                <ellipse cx="40" cy="100" rx="22" ry="38" fill="#b9783a" transform="rotate(12 40 100)"/>
+                <ellipse cx="160" cy="100" rx="22" ry="38" fill="#b9783a" transform="rotate(-12 160 100)"/>
+                <circle cx="100" cy="108" r="62" fill="#f2c27b"/>
+                <ellipse cx="124" cy="100" rx="17" ry="19" fill="#b9783a" opacity=".85"/>
+                <ellipse cx="100" cy="130" rx="32" ry="24" fill="#fff3de"/>
+                ${petBlush([58, 142], 124)}
+                ${petEyes([76, 124], 100, m)}
+                <ellipse cx="100" cy="118" rx="10" ry="7" fill="#2d2020"/><ellipse cx="97" cy="116" rx="3" ry="1.8" fill="#fff" opacity=".7"/>
+                <path d="M100 125 L100 130" stroke="${PET_INK}" stroke-width="2.5" stroke-linecap="round"/>
+                ${petMouth(100, 131, m)}`,
+            cat: m => `
+                <path d="M146 184 Q192 172 182 128" fill="none" stroke="#f6ad6b" stroke-width="14" stroke-linecap="round"/>
+                <ellipse cx="100" cy="176" rx="40" ry="24" fill="#f6ad6b"/>
+                <ellipse cx="78" cy="192" rx="14" ry="8" fill="#fff3e6"/><ellipse cx="122" cy="192" rx="14" ry="8" fill="#fff3e6"/>
+                <polygon points="44,76 52,18 94,50" fill="#f6ad6b"/><polygon points="156,76 148,18 106,50" fill="#f6ad6b"/>
+                <polygon points="54,64 58,34 82,52" fill="#ffb3c1"/><polygon points="146,64 142,34 118,52" fill="#ffb3c1"/>
+                <circle cx="100" cy="110" r="60" fill="#f6ad6b"/>
+                <path d="M100 52 L100 68 M86 54 L88 68 M114 54 L112 68" stroke="#e08a45" stroke-width="4" stroke-linecap="round"/>
+                <ellipse cx="100" cy="132" rx="22" ry="16" fill="#fff3e6"/>
+                ${petBlush([58, 142], 124)}
+                ${petEyes([74, 126], 110, m)}
+                <path d="M95 122 Q100 119 105 122 Q100 129 95 122 Z" fill="#ff7a93"/>
+                ${petMouth(100, 130, m)}
+                <g stroke="#8a6a4a" stroke-width="2" stroke-linecap="round" opacity=".6"><path d="M30 120 L62 124"/><path d="M30 134 L62 130"/><path d="M170 120 L138 124"/><path d="M170 134 L138 130"/></g>`,
+            raccoon: m => `
+                <path d="M142 184 Q198 172 184 120" fill="none" stroke="#9aa0a9" stroke-width="22" stroke-linecap="round"/>
+                <path d="M142 184 Q198 172 184 120" fill="none" stroke="#4a4e57" stroke-width="22" stroke-dasharray="8 16" stroke-linecap="butt"/>
+                <ellipse cx="100" cy="176" rx="42" ry="24" fill="#9aa0a9"/>
+                <ellipse cx="76" cy="192" rx="14" ry="8" fill="#4a4e57"/><ellipse cx="124" cy="192" rx="14" ry="8" fill="#4a4e57"/>
+                <circle cx="54" cy="58" r="19" fill="#9aa0a9"/><circle cx="54" cy="60" r="10" fill="#4a4e57"/>
+                <circle cx="146" cy="58" r="19" fill="#9aa0a9"/><circle cx="146" cy="60" r="10" fill="#4a4e57"/>
+                <circle cx="100" cy="108" r="60" fill="#a8aeb7"/>
+                <path d="M42 100 Q60 80 100 96 Q140 80 158 100 Q152 130 118 124 Q100 114 82 124 Q48 130 42 100 Z" fill="#5b6069"/>
+                <ellipse cx="100" cy="134" rx="30" ry="22" fill="#f4f4f6"/>
+                <circle cx="76" cy="84" r="4" fill="#f4f4f6"/><circle cx="124" cy="84" r="4" fill="#f4f4f6"/>
+                ${petBlush([60, 140], 130)}
+                ${petEyes([76, 124], 104, m, '#f4f4f6')}
+                <ellipse cx="100" cy="122" rx="9" ry="6.5" fill="#2d2d33"/><ellipse cx="97" cy="120" rx="3" ry="1.8" fill="#fff" opacity=".6"/>
+                ${petMouth(100, 132, m)}`,
+            otter: m => `
+                <ellipse cx="100" cy="172" rx="46" ry="26" fill="#a9764b"/>
+                <ellipse cx="100" cy="176" rx="28" ry="18" fill="#f1d9b5"/>
+                <circle cx="56" cy="60" r="12" fill="#a9764b"/><circle cx="56" cy="62" r="6" fill="#6d4527"/>
+                <circle cx="144" cy="60" r="12" fill="#a9764b"/><circle cx="144" cy="62" r="6" fill="#6d4527"/>
+                <circle cx="100" cy="108" r="58" fill="#a9764b"/>
+                <ellipse cx="100" cy="128" rx="38" ry="26" fill="#f1d9b5"/>
+                ${petBlush([54, 146], 120)}
+                ${petEyes([78, 122], 102, m)}
+                <ellipse cx="100" cy="116" rx="12" ry="8" fill="#3a2a22"/><ellipse cx="96" cy="113" rx="4" ry="2" fill="#fff" opacity=".7"/>
+                <g fill="#6d4527"><circle cx="82" cy="132" r="1.8"/><circle cx="88" cy="136" r="1.8"/><circle cx="118" cy="132" r="1.8"/><circle cx="112" cy="136" r="1.8"/></g>
+                ${petMouth(100, 130, m)}
+                <path d="M0 184 Q25 172 50 184 T100 184 T150 184 T200 184 L200 200 L0 200 Z" fill="#8fd3ff" opacity=".85"/>`,
+            capybara: m => `
+                <ellipse cx="100" cy="174" rx="48" ry="26" fill="#b98c5a"/>
+                <ellipse cx="74" cy="192" rx="14" ry="8" fill="#8f6a40"/><ellipse cx="126" cy="192" rx="14" ry="8" fill="#8f6a40"/>
+                <ellipse cx="56" cy="66" rx="12" ry="10" fill="#a5784a"/><ellipse cx="56" cy="67" rx="6" ry="5" fill="#6d4527"/>
+                <ellipse cx="144" cy="66" rx="12" ry="10" fill="#a5784a"/><ellipse cx="144" cy="67" rx="6" ry="5" fill="#6d4527"/>
+                <ellipse cx="100" cy="110" rx="64" ry="54" fill="#c19564"/>
+                <ellipse cx="100" cy="134" rx="40" ry="24" fill="#a9784a"/>
+                <ellipse cx="88" cy="124" rx="3.5" ry="5" fill="#3a2a22"/><ellipse cx="112" cy="124" rx="3.5" ry="5" fill="#3a2a22"/>
+                ${petBlush([50, 150], 122)}
+                ${petEyes([68, 132], 104, m)}
+                ${petMouth(100, 142, m)}
+                <circle cx="100" cy="58" r="15" fill="#ffa534"/><circle cx="95" cy="53" r="3.5" fill="#ffd27a"/>
+                <path d="M100 44 Q106 35 115 39 Q109 48 100 46 Z" fill="#5cb85c"/>`,
+            rabbit: m => `
+                <ellipse cx="100" cy="176" rx="40" ry="24" fill="#fff" stroke="#e6dcef" stroke-width="3"/>
+                <circle cx="152" cy="180" r="12" fill="#fff" stroke="#e6dcef" stroke-width="3"/>
+                <ellipse cx="78" cy="192" rx="13" ry="8" fill="#fff" stroke="#e6dcef" stroke-width="3"/><ellipse cx="122" cy="192" rx="13" ry="8" fill="#fff" stroke="#e6dcef" stroke-width="3"/>
+                <ellipse cx="74" cy="46" rx="15" ry="42" fill="#fff" stroke="#e6dcef" stroke-width="3" transform="rotate(-8 74 46)"/>
+                <ellipse cx="74" cy="48" rx="7" ry="30" fill="#ffc2d1" transform="rotate(-8 74 46)"/>
+                <ellipse cx="126" cy="46" rx="15" ry="42" fill="#fff" stroke="#e6dcef" stroke-width="3" transform="rotate(8 126 46)"/>
+                <ellipse cx="126" cy="48" rx="7" ry="30" fill="#ffc2d1" transform="rotate(8 126 46)"/>
+                <circle cx="100" cy="118" r="54" fill="#fff" stroke="#e6dcef" stroke-width="3"/>
+                ${petBlush([60, 140], 132)}
+                ${petEyes([78, 122], 114, m)}
+                <path d="M95 126 Q100 123 105 126 Q100 132 95 126 Z" fill="#ff7a93"/>
+                ${petMouth(100, 134, m)}`
+        };
+
+        function petSvg(type, mood = 'normal', width = '100%') {
+            const art = PET_ART[type];
+            if (!art) return '';
+            return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" style="width:${width};height:auto;display:inline-block;overflow:visible">${art(mood)}${petExtras(mood)}</svg>`;
+        }
+
+        // Temporary mood shown while an action (eat / sleep / bath / play) plays out
+        let petMoodOverride = null;
 
         // What each pet eats and plays with, shown during the feed/play action animation
         const petFoodMap = {
@@ -1014,8 +1136,8 @@
             const grid = document.getElementById('pet-choice-grid');
             grid.innerHTML = petTypes.map(p => `
                 <div onclick="choosePet('${p.id}')" class="card-pop bg-pink-50 hover:bg-pink-100 active:scale-95 border-2 border-pink-200 rounded-3xl p-4 text-center cursor-pointer transition">
-                    <div class="text-5xl">${p.emoji}</div>
-                    <p class="mt-2 font-bold text-pink-700 text-sm">${p.name}</p>
+                    <div class="mx-auto" style="width:6.5rem">${petSvg(p.id, 'normal')}</div>
+                    <p class="mt-1 font-bold text-pink-700 text-sm">${p.name}</p>
                 </div>
             `).join('');
         }
@@ -1044,8 +1166,8 @@
         function renderPetSprite() {
             const p = petTypes.find(x => x.id === petType);
             if (!p) return;
-            document.getElementById('pet-sprite').textContent = p.emoji;
             const avg = (petStats.hunger + petStats.clean + petStats.happy + petStats.energy) / 4;
+            document.getElementById('pet-sprite').innerHTML = petSvg(petType, petMoodOverride || (avg >= 70 ? 'happy' : 'normal'));
             let mood = 'มีความสุขมาก 😄';
             if (avg < 40) mood = 'ต้องการการดูแล 🥺';
             else if (avg < 70) mood = 'สบายดี 🙂';
@@ -1088,24 +1210,32 @@
             const emojiEl = document.getElementById('pet-action-emoji');
             const textEl = document.getElementById('pet-action-text');
 
+            // The big pet picture changes its face for the action; this strip shows the prop.
             let emoji = '';
             let text = '';
+            let mood = 'normal';
             if (action === 'feed') {
                 const food = petFoodMap[petType] || { emoji: '🍎', label: 'อาหาร' };
-                emoji = `${p.emoji} ${food.emoji}`;
+                emoji = food.emoji;
+                mood = 'eat';
                 text = `${p.name}กำลังกิน${food.label}... อร่อยจัง!`;
             } else if (action === 'bathe') {
-                emoji = `🛁 ${p.emoji} 🫧`;
+                emoji = '🛁 🫧';
+                mood = 'bath';
                 text = `${p.name}กำลังอาบน้ำ... สะอาดสะอ้าน!`;
             } else if (action === 'play') {
                 const toy = petToyMap[petType] || { emoji: '🎾', label: 'ของเล่น' };
-                emoji = `${p.emoji} ${toy.emoji}`;
+                emoji = toy.emoji;
+                mood = 'happy';
                 text = `${p.name}กำลังเล่น${toy.label}... สนุกจัง!`;
             } else if (action === 'sleep') {
-                emoji = `${p.emoji} 💤 🌙`;
+                emoji = '💤 🌙';
+                mood = 'sleep';
                 text = `${p.name}กำลังนอนหลับสบาย... ฝันดีนะ`;
             }
 
+            petMoodOverride = mood;
+            renderPetSprite();
             emojiEl.textContent = emoji;
             textEl.textContent = text;
             scene.classList.remove('hidden');
@@ -1118,6 +1248,8 @@
             showPetAction._timer = setTimeout(() => {
                 scene.classList.add('hidden');
                 scene.classList.remove('flex');
+                petMoodOverride = null;
+                renderPetSprite();
             }, 2200);
         }
 
