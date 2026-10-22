@@ -42,6 +42,44 @@
         .card-pop:hover { animation: wiggle 0.35s ease-in-out; }
         .pop-in { animation: pop-in 0.4s ease; }
         .star-pulse { animation: bounce-soft 0.5s ease; }
+
+        /* Flash-style pet motion: squash & stretch per action. Driven by data-action on
+           #pet-sprite (set from JS) so the SVG art itself stays static markup. */
+        .pet-eyes, .pet-z, .pet-bubble { transform-box: fill-box; transform-origin: center; }
+        .pet-mouth { transform-box: fill-box; transform-origin: 50% 0; }
+        #pet-sprite svg { transform-origin: 50% 92%; }
+        @keyframes pet-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.08); } }
+        @keyframes pet-chew { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.35); } }
+        @keyframes pet-munch { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(4px) scale(1.05, 0.93); } }
+        @keyframes pet-hop {
+            0%, 100% { transform: translateY(0) scale(1.07, 0.9); }
+            35% { transform: translateY(-24px) scale(0.94, 1.08) rotate(-6deg); }
+            65% { transform: translateY(-24px) scale(0.94, 1.08) rotate(6deg); }
+        }
+        @keyframes pet-shake { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+        @keyframes pet-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.05, 1.035); } }
+        @keyframes pet-rise { 0% { transform: translateY(12px) scale(0.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-28px) scale(1.15); opacity: 0; } }
+        @keyframes pet-zfloat { 0% { transform: translate(0, 10px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(8px, -20px); opacity: 0; } }
+        @keyframes prop-nibble { 0%, 100% { transform: translateX(0) scale(1); } 50% { transform: translateX(-8px) scale(0.82) rotate(-8deg); } }
+        @keyframes prop-swing { 0%, 100% { transform: rotate(-25deg) translateY(0); } 50% { transform: rotate(25deg) translateY(-8px); } }
+        @keyframes prop-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+
+        .pet-eyes.blink { animation: pet-blink 4s infinite; }
+        .pet-bubble { animation: pet-rise 1.6s ease-in infinite; }
+        .pet-z { animation: pet-zfloat 2s ease-in-out infinite; }
+        #pet-sprite[data-action="eat"] svg { animation: pet-munch 0.45s ease-in-out infinite; }
+        #pet-sprite[data-action="eat"] .pet-mouth { animation: pet-chew 0.3s ease-in-out infinite; }
+        #pet-sprite[data-action="play"] svg { animation: pet-hop 0.7s ease-in-out infinite; }
+        #pet-sprite[data-action="bath"] svg { animation: pet-shake 0.5s ease-in-out infinite; }
+        #pet-sprite[data-action="sleep"] svg { animation: pet-breathe 2.4s ease-in-out infinite; }
+        #pet-action-emoji { display: inline-block; }
+        #pet-action-emoji[data-action="eat"] { animation: prop-nibble 0.5s ease-in-out infinite; }
+        #pet-action-emoji[data-action="play"] { animation: prop-swing 0.7s ease-in-out infinite; }
+        #pet-action-emoji[data-action="bath"] { animation: prop-bob 0.8s ease-in-out infinite; }
+        #pet-action-emoji[data-action="sleep"] { animation: prop-bob 1.8s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+            #pet-sprite svg, #pet-sprite .pet-mouth, .pet-eyes.blink, .pet-bubble, .pet-z, #pet-action-emoji { animation: none !important; }
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-sky-50 via-teal-50 to-amber-50 text-slate-800 min-h-screen flex flex-col">
@@ -953,17 +991,20 @@
 
         // `ink` lets a pet with a dark face mask (raccoon) draw closed eyes in a light colour
         function petEyes(xs, y, mood, ink = PET_INK) {
-            return xs.map(x => {
+            const eyes = xs.map(x => {
                 if (mood === 'sleep') return `<path d="M${x - 8} ${y} Q${x} ${y + 8} ${x + 8} ${y}" fill="none" stroke="${ink}" stroke-width="3.5" stroke-linecap="round"/>`;
-                if (mood === 'happy' || mood === 'eat' || mood === 'bath') return `<path d="M${x - 8} ${y + 3} Q${x} ${y - 9} ${x + 8} ${y + 3}" fill="none" stroke="${ink}" stroke-width="3.5" stroke-linecap="round"/>`;
+                if (mood === 'happy' || mood === 'eat' || mood === 'bath' || mood === 'play') return `<path d="M${x - 8} ${y + 3} Q${x} ${y - 9} ${x + 8} ${y + 3}" fill="none" stroke="${ink}" stroke-width="3.5" stroke-linecap="round"/>`;
                 return `<circle cx="${x}" cy="${y}" r="8.5" fill="#241818"/><circle cx="${x + 3}" cy="${y - 3.5}" r="3.2" fill="#fff"/><circle cx="${x - 3}" cy="${y + 3}" r="1.6" fill="#fff"/>`;
             }).join('');
+            return `<g class="pet-eyes${mood === 'normal' ? ' blink' : ''}">${eyes}</g>`;
         }
 
         function petMouth(x, y, mood) {
-            if (mood === 'eat') return `<path d="M${x - 10} ${y} Q${x} ${y + 20} ${x + 10} ${y} Z" fill="#e8556d" stroke="${PET_INK}" stroke-width="2.5" stroke-linejoin="round"/><ellipse cx="${x}" cy="${y + 10}" rx="5" ry="3" fill="#ff9eb5"/>`;
-            if (mood === 'sleep') return `<path d="M${x - 4} ${y + 2} Q${x} ${y + 5} ${x + 4} ${y + 2}" fill="none" stroke="${PET_INK}" stroke-width="2.5" stroke-linecap="round"/>`;
-            return `<path d="M${x - 9} ${y} Q${x - 4.5} ${y + 7} ${x} ${y} Q${x + 4.5} ${y + 7} ${x + 9} ${y}" fill="none" stroke="${PET_INK}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+            let mouth;
+            if (mood === 'eat') mouth = `<path d="M${x - 10} ${y} Q${x} ${y + 20} ${x + 10} ${y} Z" fill="#e8556d" stroke="${PET_INK}" stroke-width="2.5" stroke-linejoin="round"/><ellipse cx="${x}" cy="${y + 10}" rx="5" ry="3" fill="#ff9eb5"/>`;
+            else if (mood === 'sleep') mouth = `<path d="M${x - 4} ${y + 2} Q${x} ${y + 5} ${x + 4} ${y + 2}" fill="none" stroke="${PET_INK}" stroke-width="2.5" stroke-linecap="round"/>`;
+            else mouth = `<path d="M${x - 9} ${y} Q${x - 4.5} ${y + 7} ${x} ${y} Q${x + 4.5} ${y + 7} ${x + 9} ${y}" fill="none" stroke="${PET_INK}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+            return `<g class="pet-mouth">${mouth}</g>`;
         }
 
         function petBlush(xs, y) {
@@ -971,8 +1012,11 @@
         }
 
         function petExtras(mood) {
-            if (mood === 'sleep') return `<g font-family="'Baloo 2', sans-serif" font-weight="700" fill="#6c63ff"><text x="148" y="44" font-size="28">Z</text><text x="170" y="22" font-size="19">z</text></g>`;
-            if (mood === 'bath') return `<g fill="#e6f6ff" fill-opacity=".7" stroke="#7ec8ff" stroke-width="2.5"><circle cx="30" cy="56" r="11"/><circle cx="170" cy="74" r="9"/><circle cx="152" cy="30" r="6"/><circle cx="44" cy="150" r="7"/><circle cx="166" cy="148" r="10"/><circle cx="22" cy="100" r="5"/></g>`;
+            if (mood === 'sleep') return `<g font-family="'Baloo 2', sans-serif" font-weight="700" fill="#6c63ff"><text class="pet-z" x="148" y="44" font-size="28">Z</text><text class="pet-z" style="animation-delay:.9s" x="170" y="22" font-size="19">z</text></g>`;
+            if (mood === 'bath') {
+                const bubbles = [[30, 56, 11], [170, 74, 9], [152, 30, 6], [44, 150, 7], [166, 148, 10], [22, 100, 5]];
+                return `<g fill="#e6f6ff" fill-opacity=".7" stroke="#7ec8ff" stroke-width="2.5">${bubbles.map(([cx, cy, r], i) => `<circle class="pet-bubble" style="animation-delay:${(i * 0.27).toFixed(2)}s" cx="${cx}" cy="${cy}" r="${r}"/>`).join('')}</g>`;
+            }
             return '';
         }
 
@@ -1167,7 +1211,9 @@
             const p = petTypes.find(x => x.id === petType);
             if (!p) return;
             const avg = (petStats.hunger + petStats.clean + petStats.happy + petStats.energy) / 4;
-            document.getElementById('pet-sprite').innerHTML = petSvg(petType, petMoodOverride || (avg >= 70 ? 'happy' : 'normal'));
+            const sprite = document.getElementById('pet-sprite');
+            sprite.innerHTML = petSvg(petType, petMoodOverride || (avg >= 70 ? 'happy' : 'normal'));
+            sprite.dataset.action = petMoodOverride || '';
             let mood = 'มีความสุขมาก 😄';
             if (avg < 40) mood = 'ต้องการการดูแล 🥺';
             else if (avg < 70) mood = 'สบายดี 🙂';
@@ -1226,7 +1272,7 @@
             } else if (action === 'play') {
                 const toy = petToyMap[petType] || { emoji: '🎾', label: 'ของเล่น' };
                 emoji = toy.emoji;
-                mood = 'happy';
+                mood = 'play';
                 text = `${p.name}กำลังเล่น${toy.label}... สนุกจัง!`;
             } else if (action === 'sleep') {
                 emoji = '💤 🌙';
@@ -1237,6 +1283,7 @@
             petMoodOverride = mood;
             renderPetSprite();
             emojiEl.textContent = emoji;
+            emojiEl.dataset.action = mood;
             textEl.textContent = text;
             scene.classList.remove('hidden');
             scene.classList.add('flex');
@@ -1250,7 +1297,7 @@
                 scene.classList.remove('flex');
                 petMoodOverride = null;
                 renderPetSprite();
-            }, 2200);
+            }, 3000);
         }
 
         function petAction(action) {
